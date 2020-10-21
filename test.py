@@ -7,23 +7,23 @@ with open('CE200_sample/1/feature.json') as f:
     data = json.load(f)
 
 target_list = [
-    # 'chroma_stft',
-    # 'chroma_cqt',
-    'chroma_cens',
-    # 'rms',
-    # 'spectral_centroid',      # 頻譜質心：頻譜質心指示聲音的「質心」位於何處，並按照聲音的頻率的加權平均值來加以計算。
-    # 'spectral_bandwidth',
-    # 'spectral_contrast',
-    # 'spectral_flatness',
-    # 'spectral_rolloff',       # 譜滾降：對訊號形狀的測量，表示的是在譜能量的特定百分比 （如 85%）時的頻率。
-    # 'poly_features',
-    # 'tonnetz',
-    # 'zero_crossing_rate'      # 過零率
+    'chroma_stft',
+    'chroma_cqt',
+    # 'chroma_cens',
+    'rms',
+    'spectral_centroid',      # 頻譜質心：頻譜質心指示聲音的「質心」位於何處，並按照聲音的頻率的加權平均值來加以計算。
+    'spectral_bandwidth',
+    'spectral_contrast',
+    'spectral_flatness',
+    'spectral_rolloff',       # 譜滾降：對訊號形狀的測量，表示的是在譜能量的特定百分比 （如 85%）時的頻率。
+    'poly_features',
+    'tonnetz',
+    'zero_crossing_rate'      # 過零率
 ]
 chord_name = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 fig, axs = plt.subplots(len(target_list))
-# fig.suptitle('Vertically stacked subplots')
+fig.suptitle('AI CUP 2020')
 
 for index_i, target_key in enumerate(target_list):
     
@@ -34,14 +34,15 @@ for index_i, target_key in enumerate(target_list):
         
         ax = axs if len(target_list) == 1 else axs[index_i]
         
+        # 46
         start_frame = 426
-        end_frame = 564
+        end_frame = 656
 
         # start_frame = 2403
         # end_frame = 2476
 
         y = np.array(wave[start_frame:end_frame])
-        x = np.arange(start_frame, end_frame)
+        x = np.array([(number * 512 / 22050) for number in range(start_frame, end_frame)])
 
         if len(target) == len(chord_name):
             ax.plot(x, y, label=chord_name[index_j])
@@ -49,4 +50,5 @@ for index_i, target_key in enumerate(target_list):
         else:
             ax.plot(x, y)
 
+# plt.tight_layout()
 plt.show()
