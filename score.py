@@ -29,7 +29,8 @@ def get_sevenths_scores_array(ref_file, est_file):
 
 # for testing
 if __name__ == "__main__":
-    get_sevenths_scores_array(
+    comparisons = get_sevenths_scores_array(
         ref_file='testing/ref_file.txt',
         est_file='testing/est_file.txt'
     )
+    print(comparisons)

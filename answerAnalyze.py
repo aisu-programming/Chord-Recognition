@@ -1,4 +1,4 @@
-with open('CE200_sample/2/ground_truth.txt') as f:
+with open('CE200_sample/1/ground_truth.txt') as f:
     
     index = 0
 
