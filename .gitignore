@@ -2,3 +2,9 @@
 CE200*
 AIcup提供dataset說明.docx
 convert/convert.zip
+
+# 環境配置
+venv4Chord
+
+# 程式碼
+*.pyc
