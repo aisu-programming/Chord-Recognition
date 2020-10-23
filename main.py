@@ -17,12 +17,18 @@ SR = 22050
 N_FFT = 512
 HOP_LENGTH = 512
 FRAME_LENGTH = 512
+DEBUG_MODE = True
 
 
 '''
 Global variables
 '''
-file_amount = 200
+if DEBUG_MODE:
+    file_directory = 'CE200_sample'
+    file_amount = 20
+else:
+    file_directory = 'CE200'
+    file_amount = 200
 
 
 '''
@@ -45,13 +51,13 @@ def read_input_data():
     all_input_data = []
 
     toolbar_width = 100
-    sys.stdout.write("Reading feature.json of each songs in 'CE200'.\n[%s]" % (" " * toolbar_width))
+    sys.stdout.write("Reading feature.json of each songs in '%s'.\n[%s]" % (file_directory, " " * toolbar_width))
     sys.stdout.flush()
     sys.stdout.write("\b" * (toolbar_width+1))
 
     for song_index in range(file_amount):
         
-        file_name = f'CE200/{song_index+1}/feature.json'
+        file_name = file_directory + f'/{song_index+1}/feature.json'
         with open(file_name) as f:
             data = json.load(f)
 
@@ -60,7 +66,10 @@ def read_input_data():
         input_data = np.vstack((chroma_cqt, chroma_cens)).transpose()
         all_input_data.append(input_data)
 
-        if (song_index + 1) % (file_amount / toolbar_width) == 0:
+        if DEBUG_MODE:
+            sys.stdout.write("=" * 5)
+            sys.stdout.flush()
+        elif (song_index + 1) % (file_amount / toolbar_width) == 0:
             sys.stdout.write("=")
             sys.stdout.flush()
 
@@ -68,12 +77,12 @@ def read_input_data():
     return all_input_data
 
 
-def produce_answer_data():
+def process_answer_data():
 
     all_answer_data = []
 
     toolbar_width = 100
-    sys.stdout.write("Reading ground_truth.txt of each songs in 'CE200'.\n[%s]" % (" " * toolbar_width))
+    sys.stdout.write("Processing ground_truth.txt of each songs in '%s'.\n[%s]" % (file_directory, " " * toolbar_width))
     sys.stdout.flush()
     sys.stdout.write("\b" * (toolbar_width+1))
 
@@ -81,25 +90,42 @@ def produce_answer_data():
 
         answer_data = []
 
-        file_name = f'CE200/{song_index+1}/ground_truth.txt'
+        file_name = file_directory + f'/{song_index+1}/ground_truth.txt'
         with open(file_name) as f:
             while True:
                 row = f.readline()
                 if row == '': break
                 row_data = row[:-1].split('\t')
-                answer_data.append([row_data[0], row_data[1], row_data[2]])
+                second_per_frame = float(HOP_LENGTH) / float(SR)
+                start_time = float(row_data[0])
+                end_time = float(row_data[1])
+                label = row_data[2]
+                for _ in range(round((end_time - start_time) / second_per_frame)):
+                    answer_data.append(label)
 
         all_answer_data.append(answer_data)
-        if (song_index + 1) % (file_amount / toolbar_width) == 0:
+        if DEBUG_MODE:
+            sys.stdout.write("=" * 5)
+            sys.stdout.flush()
+        elif (song_index + 1) % (file_amount / toolbar_width) == 0:
             sys.stdout.write("=")
             sys.stdout.flush()
 
     sys.stdout.write("]\n")
     return all_answer_data
 
-
 if __name__ == "__main__":
-
-    # all_input_data = read_input_data()
-    all_answer_data = produce_answer_data()
+    all_input_data = read_input_data()
+    all_answer_data = process_answer_data()
     
+    print('index:  input <---> answer')
+    print('-------------------------')
+    for index in range(file_amount):
+        print(f'{index+1:5}: {len(all_input_data[index]):6} <---> {len(all_answer_data[index]):6}')
+
+    # all_input_data[10]
+    # tmp = ''
+    # for chord in all_answer_data[10]:
+    #     if tmp != chord:
+    #         print(chord)
+    #         tmp = chord

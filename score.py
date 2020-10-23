@@ -20,17 +20,18 @@ def get_sevenths_scores_array(ref_file, est_file):
         est_labels
     )
 
-    # durations = mir_eval.util.intervals_to_durations(intervals)
-    comparisons = mir_eval.chord.sevenths(ref_labels, est_labels)
-    # score = mir_eval.chord.weighted_accuracy(comparisons, durations)
+    # for index, interval in enumerate(intervals):
+    #     print(f'{interval[0]:0>10.6f} ~ {interval[1]:0>10.6f}: {ref_labels[index]:8} <---> {est_labels[index]:8}')
 
-    # print(score)
-    return comparisons
+    durations = mir_eval.util.intervals_to_durations(intervals)
+    comparisons = mir_eval.chord.sevenths(ref_labels, est_labels)
+    score = mir_eval.chord.weighted_accuracy(comparisons, durations)
+    return score
 
 # for testing
 if __name__ == "__main__":
-    comparisons = get_sevenths_scores_array(
+    score = get_sevenths_scores_array(
         ref_file='testing/ref_file.txt',
         est_file='testing/est_file.txt'
     )
-    print(comparisons)
+    print(score)
