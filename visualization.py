@@ -1,7 +1,10 @@
+''' Libraries '''
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+
+''' Codes '''
 def display_figure(data):
 
     target_list = [

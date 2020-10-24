@@ -1,6 +1,9 @@
+''' Libraries '''
 import mir_eval
 
-def get_sevenths_scores_array(ref_file, est_file):
+
+''' Codes '''
+def get_sevenths_score(ref_file, est_file):
 
     (ref_intervals, ref_labels) = mir_eval.io.load_labeled_intervals(ref_file)
     (est_intervals, est_labels) = mir_eval.io.load_labeled_intervals(est_file)
@@ -28,9 +31,10 @@ def get_sevenths_scores_array(ref_file, est_file):
     score = mir_eval.chord.weighted_accuracy(comparisons, durations)
     return score
 
-# for testing
+
+''' Testing '''
 if __name__ == "__main__":
-    score = get_sevenths_scores_array(
+    score = get_sevenths_score(
         ref_file='testing/ref_file.txt',
         est_file='testing/est_file.txt'
     )
