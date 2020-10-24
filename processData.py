@@ -13,7 +13,7 @@ FRAME_LENGTH = 512
 
 
 ''' Global variables '''
-debug_mode = True
+debug_mode = False
 if debug_mode:
     output_file_name = 'CE200_sample.csv'
     file_directory = 'CE200_sample'
@@ -98,42 +98,13 @@ def match_data_and_write_into_csv(all_input_data, all_answer_data, all_in_one=Fa
 
     if all_in_one: print('All in one: ON\n')
     else: print('All in one: OFF\n')
-    
-    for index in range(file_amount):
-        # 刪除多餘的辨識答案
-        while len(all_answer_data[index]) > len(all_input_data[index]):
-            all_answer_data[index].pop()
-        # 填補欠缺的辨識答案
-        while len(all_answer_data[index]) < len(all_input_data[index]):
-            all_answer_data[index].append('N')
 
+    cqt = 'chroma_cqt '
+    cen = 'chroma_cens '
     columns = [
-        'Song No.',
-        'Frame No.',
-        'chroma_cqt C',
-        'chroma_cqt C#',
-        'chroma_cqt D',
-        'chroma_cqt D#',
-        'chroma_cqt E',
-        'chroma_cqt F',
-        'chroma_cqt F#',
-        'chroma_cqt G',
-        'chroma_cqt G#',
-        'chroma_cqt A',
-        'chroma_cqt A#',
-        'chroma_cqt B',
-        'chroma_cens C',
-        'chroma_cens C#',
-        'chroma_cens D',
-        'chroma_cens D#',
-        'chroma_cens E',
-        'chroma_cens F',
-        'chroma_cens F#',
-        'chroma_cens G',
-        'chroma_cens G#',
-        'chroma_cens A',
-        'chroma_cens A#',
-        'chroma_cens B',
+        'Song No.', 'Frame No.',
+        cqt+'C', cqt+'C#', cqt+'D', cqt+'D#', cqt+'E', cqt+'F', cqt+'F#', cqt+'G', cqt+'G#', cqt+'A', cqt+'A#', cqt+'B',
+        cen+'C', cen+'C#', cen+'D', cen+'D#', cen+'E', cen+'F', cen+'F#', cen+'G', cen+'G#', cen+'A', cen+'A#', cen+'B',
         'label'
     ]
 
@@ -175,6 +146,17 @@ def match_data_and_write_into_csv(all_input_data, all_answer_data, all_in_one=Fa
     print('Done.')
 
 
+def generate_mapping_dictionary(all_answer_data):
+    all_label = []
+    for answer_data in all_answer_data:
+        for label in answer_data:
+            if label.strip() not in all_label:
+                all_label.append(label.strip())
+    all_label.sort()
+    mapping_dict = { label: index for index, label in enumerate(all_label) }
+    return mapping_dict
+
+
 if __name__ == "__main__":
 
     if debug_mode: print('\nDEBUG MODE\n')
@@ -182,4 +164,16 @@ if __name__ == "__main__":
 
     all_input_data = read_input_data()
     all_answer_data = process_answer_data()
+
+    for index in range(file_amount):
+        # 刪除多餘的辨識答案
+        while len(all_answer_data[index]) > len(all_input_data[index]):
+            all_answer_data[index].pop()
+        # 填補欠缺的辨識答案
+        while len(all_answer_data[index]) < len(all_input_data[index]):
+            all_answer_data[index].append('N')
+
     match_data_and_write_into_csv(all_input_data, all_answer_data, all_in_one=False)
+
+    # all_answer_data = process_answer_data()
+    # print(generate_mapping_dictionary(all_answer_data))

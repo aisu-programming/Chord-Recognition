@@ -34,8 +34,12 @@ def get_sevenths_score(ref_file, est_file):
 
 ''' Testing '''
 if __name__ == "__main__":
+    # score = get_sevenths_score(
+    #     ref_file='testing/ref_file.txt',
+    #     est_file='testing/est_file.txt'
+    # )
     score = get_sevenths_score(
-        ref_file='testing/ref_file.txt',
-        est_file='testing/est_file.txt'
+        ref_file='CE200_sample/1/ground_truth.txt',
+        est_file='test.txt'
     )
     print(score)
