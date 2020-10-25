@@ -56,3 +56,12 @@ def display_figure(data):
 
     # plt.tight_layout()
     plt.show()
+
+
+''' Testing '''
+if __name__ == "__main__":
+    file_name = f'CE200/1/feature.json'
+    with open(file_name) as f:
+        import json
+        data = json.load(f)
+        display_figure(data)
