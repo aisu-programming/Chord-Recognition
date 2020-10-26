@@ -15,8 +15,8 @@ RAMDON_SEED = 1
 
 
 ''' Global variables '''
-epochs = 75
-batch_size = 300
+epochs = 150
+batch_size = 500
 
 load_exist_model = False
 load_model_path = 'model/2020-10-24/third_try.h5'
@@ -43,7 +43,7 @@ def adjust_model(model):
     return model
 
 
-def compare_loss(history, display=True):
+def compare_figure(history, display=True):
     import matplotlib.pyplot as plt
     
     loss = history.history['loss']
@@ -53,18 +53,18 @@ def compare_loss(history, display=True):
     epochs_length = range(1, len(loss)+1)
 
     fig, axs = plt.subplots(2)
-    fig.set_size_inches(12, 18)
+    fig.set_size_inches(12, 16) # 3:4
     fig.suptitle('Training & Validation Comparition')
     # plt.title('Training & Validation Loss')
     # plt.xlabel('Epochs')
     # plt.ylabel('Loss')
-    axs[0].plot(epochs_length, loss, "b-o", label='Training Loss')
-    axs[0].plot(epochs_length, validation_loss, "r-o", label='Validation Loss')
-    axs[1].plot(epochs_length, accuracy, "b-o", label='Training Accuracy')
-    axs[1].plot(epochs_length, validation_accuracy, "r-o", label='Validation Accuracy')
+    axs[0].plot(epochs_length, loss, "b-", label='Training Loss')
+    axs[0].plot(epochs_length, validation_loss, "r-", label='Validation Loss')
+    axs[1].plot(epochs_length, accuracy, "b-", label='Training Accuracy')
+    axs[1].plot(epochs_length, validation_accuracy, "r-", label='Validation Accuracy')
     axs[0].legend()
     axs[1].legend()
-    plt.savefig(f'{save_directory}/figure.png', dpi=150)
+    plt.savefig(f'{save_directory}/figure.png', dpi=200)
     if display: plt.show()
     return
 
@@ -94,6 +94,8 @@ def main():
     model = Sequential()
     if load_exist_model:
         model = load_model(load_model_path)
+        loss, accuracy = model.evaluate(X_test, Y_test)
+        print(f'Evaluate with test data. Accuracy: {accuracy * 100:.3f}%')
     else:
         model = adjust_model(model)
         os.system('cls')
@@ -102,13 +104,16 @@ def main():
             validation_data=(X_test, Y_test),
             epochs=epochs, batch_size=batch_size
         )
+        loss, accuracy = model.evaluate(X_test, Y_test)
+        print(f'\nEvaluate with test data. Accuracy: {accuracy * 100:.2f}%\n')
+
+        ''' Save figure & model '''
+        global save_directory
+        save_directory = f'{save_directory}-oneFrame-{accuracy * 100:.2f}%'
         if not os.path.exists(save_directory):
             os.makedirs(save_directory)
-        compare_loss(history, display=False)
+        compare_figure(history, display=True)
         model.save(f'{save_directory}/model.h5')
-
-    loss, accuracy = model.evaluate(X_test, Y_test)
-    print(f'Evaluate with test data. Accuracy: {accuracy * 100:.3f}%')
 
     ''' Estimate then Output '''
     if output_answer:

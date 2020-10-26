@@ -94,10 +94,21 @@ def process_answer_data():
     return all_answer_data
 
 
-def match_data_and_write_into_csv(all_input_data, all_answer_data, all_in_one=False):
+def match_data_and_write_into_csv(all_in_one=False):
 
     if all_in_one: print('All in one: ON\n')
     else: print('All in one: OFF\n')
+
+    all_input_data = read_input_data()
+    all_answer_data = process_answer_data()
+
+    for index in range(file_amount):
+        # 刪除多餘的辨識答案
+        while len(all_answer_data[index]) > len(all_input_data[index]):
+            all_answer_data[index].pop()
+        # 填補欠缺的辨識答案
+        while len(all_answer_data[index]) < len(all_input_data[index]):
+            all_answer_data[index].append('N')
 
     cqt = 'chroma_cqt '
     cen = 'chroma_cens '
@@ -146,13 +157,16 @@ def match_data_and_write_into_csv(all_input_data, all_answer_data, all_in_one=Fa
     print('Done.')
 
 
-def generate_mapping_dictionary(all_answer_data):
+def generate_mapping_dictionary():
+    all_answer_data = process_answer_data()
     all_label = []
     for answer_data in all_answer_data:
         for label in answer_data:
             if label.strip() not in all_label:
                 all_label.append(label.strip())
     all_label.sort()
+    all_label.remove('N')
+    all_label.insert(0, 'N')
     mapping_dict = { label: index for index, label in enumerate(all_label) }
     return mapping_dict
 
@@ -162,18 +176,6 @@ if __name__ == "__main__":
     if debug_mode: print('\nDEBUG MODE\n')
     else: print('\nNORMAL MODE\n')
 
-    all_input_data = read_input_data()
-    all_answer_data = process_answer_data()
+    # match_data_and_write_into_csv(all_in_one=False)
 
-    for index in range(file_amount):
-        # 刪除多餘的辨識答案
-        while len(all_answer_data[index]) > len(all_input_data[index]):
-            all_answer_data[index].pop()
-        # 填補欠缺的辨識答案
-        while len(all_answer_data[index]) < len(all_input_data[index]):
-            all_answer_data[index].append('N')
-
-    match_data_and_write_into_csv(all_input_data, all_answer_data, all_in_one=False)
-
-    # all_answer_data = process_answer_data()
-    # print(generate_mapping_dictionary(all_answer_data))
+    # print(generate_mapping_dictionary())
