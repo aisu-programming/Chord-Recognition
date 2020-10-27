@@ -16,16 +16,19 @@ RAMDON_SEED = 1
 
 
 ''' Global variables '''
+data_divide_amount = 5
+sec_per_frame = 512.0 / 22050.0 / data_divide_amount
+
 frames_per_data = 7 # please set an odd number
 frames_on_one_side = int((frames_per_data - 1) / 2)
 
 data_split_percentage = 0.6
 
-epochs = 1000
-batch_size = 11
+epochs = 50
+batch_size = 1
 
 load_exist_model = False
-load_model_path = 'model/2020-10-24/third_try.h5'
+load_model_path = 'model/2020-10-27/14.49.42-MF-96.71%-97.312/model.h5'
 
 auto_save_path = True
 if auto_save_path:
@@ -53,7 +56,10 @@ def processData():
     ''' Dataset '''
     np.random.seed(RAMDON_SEED)
     
-    data = pd.read_csv(f'CE200_sample/1/data.csv', index_col=0)
+    if data_divide_amount == 1: read_csv_file_path = f'CE200_sample/1/data.csv'
+    else: read_csv_file_path = f'CE200_sample/1/data_divide_{data_divide_amount}.csv'
+    
+    data = pd.read_csv(read_csv_file_path, index_col=0)
     data = data.drop(['Song No.', 'Frame No.'], axis=1)
     data['label'] = data['label'].map(mapping_dict)
 
@@ -124,12 +130,16 @@ def estimate_and_write_to_file(model, X):
     print(f"\nEstimating and write to '{output_file_path}'...\n")
     Y_pred = model.predict_classes(X)
     with open(output_file_path, mode='w') as f:
-        sec_per_frame = 512.0 / 22050.0
-        for index, label in enumerate(Y_pred):
-            for k, v in mapping_dict.items():
-                if v == label:
-                    f.write(f'{sec_per_frame * index:.06f}\t{sec_per_frame * (index + 1):.06f}\t{k}\n')
-                    break
+        index_now = 0
+        index_last = 0
+        while index_now < len(Y_pred):
+            if (index_now == len(Y_pred) - 1) or (Y_pred[index_now] != Y_pred[index_now+1]):
+                for k, v in mapping_dict.items():
+                    if v == Y_pred[index_now]:
+                        f.write(f'{sec_per_frame*index_last:.06f}\t{sec_per_frame*(index_now+1):.06f}\t{k}\n')
+                        index_last = index_now + 1
+                        break
+            index_now += 1
     print('\nDone.')
     return
 
@@ -161,7 +171,12 @@ def main():
         model = load_model(load_model_path)
         loss, accuracy = model.evaluate(X_validate, Y_validate)
         print(f'\nEvaluate with test data - Loss: {loss}, Accuracy: {accuracy * 100:.3f}%')
-        if output_answer: estimate_and_write_to_file(model, X)
+        # loss, accuracy = model.evaluate(X, Y)
+        # print(f'\nEvaluate with original data. Accuracy: {accuracy * 100:.2f}%')
+        if output_answer:
+            estimate_and_write_to_file(model, X)
+            score = get_sevenths_score(ref_file='CE200_sample/1/ground_truth.txt', est_file='test.txt')
+            print(f'\nScore: {score}')
     else:
         model = adjust_model(model)
         os.system('cls')
@@ -171,8 +186,9 @@ def main():
             epochs=epochs, batch_size=batch_size
         )
         loss, accuracy = model.evaluate(X_validate, Y_validate)
-        print(f'\nEvaluate with original data. Accuracy: {accuracy * 100:.2f}%')
-
+        print(f'\nEvaluate with validation data. Accuracy: {accuracy * 100:.2f}%')
+        # loss, accuracy = model.evaluate(X, Y)
+        # print(f'\nEvaluate with original data. Accuracy: {accuracy * 100:.2f}%')
         
         ''' Save figure & model '''
         global save_directory

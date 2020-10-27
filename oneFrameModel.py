@@ -7,6 +7,7 @@ from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.utils import to_categorical
 
+from score import get_sevenths_score
 from mapping import mapping_dict
 
 
@@ -41,6 +42,34 @@ def adjust_model(model):
     model.add(Dense(544, input_shape=(96, ), activation='softmax'))
     model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
     return model
+
+
+def estimate_and_write_to_file(model, X):
+    print(f"\nEstimating and write to '{output_file_path}'...\n")
+    Y_pred = model.predict_classes(X)
+    with open(output_file_path, mode='w') as f:
+        sec_per_frame = 512.0 / 22050.0
+        for index, label in enumerate(Y_pred):
+            for k, v in mapping_dict.items():
+                if v == label:
+                    f.write(f'{sec_per_frame * index:.06f}\t{sec_per_frame * (index + 1):.06f}\t{k}\n')
+                    break
+    print('\nDone.')
+    return
+
+
+def record_details(save_directory, accuracy, score):
+    print(f"\nRecording details... ", end='')
+    with open(f'{save_directory}/details.txt', mode='w') as f:
+        f.write(f'RAMDON_SEED = {RAMDON_SEED}\n')
+        f.write(f'\n')
+        f.write(f'epochs = {epochs}\n')
+        f.write(f'batch_size = {batch_size}\n')
+        f.write(f'\n')
+        f.write(f'accuracy = {accuracy}\n')
+        f.write(f'score = {score}\n')
+    print('Done.')
+    return
 
 
 def compare_figure(history, display=True):
@@ -88,43 +117,42 @@ def main():
     # Y = to_categorical(dataset[:, 24])
     train_amount = 5500
     X_train, Y_train = X[:train_amount], Y[:train_amount]
-    X_test, Y_test = X[train_amount:], Y[train_amount:]
+    X_validate, Y_validate = X[train_amount:], Y[train_amount:]
 
     ''' Model '''
     model = Sequential()
     if load_exist_model:
         model = load_model(load_model_path)
-        loss, accuracy = model.evaluate(X_test, Y_test)
-        print(f'Evaluate with test data. Accuracy: {accuracy * 100:.3f}%')
+        loss, accuracy = model.evaluate(X_validate, Y_validate)
+        print(f'Evaluate with validation data. Accuracy: {accuracy * 100:.3f}%')
+        # loss, accuracy = model.evaluate(X, Y)
+        # print(f'\nEvaluate with original data. Accuracy: {accuracy * 100:.2f}%')
     else:
         model = adjust_model(model)
         os.system('cls')
         history = model.fit(
             X_train, Y_train,
-            validation_data=(X_test, Y_test),
+            validation_data=(X_validate, Y_validate),
             epochs=epochs, batch_size=batch_size
         )
-        loss, accuracy = model.evaluate(X_test, Y_test)
-        print(f'\nEvaluate with test data. Accuracy: {accuracy * 100:.2f}%\n')
+        loss, accuracy = model.evaluate(X_validate, Y_validate)
+        print(f'\nEvaluate with validation data. Accuracy: {accuracy * 100:.2f}%\n')
+        # loss, accuracy = model.evaluate(X, Y)
+        # print(f'\nEvaluate with original data. Accuracy: {accuracy * 100:.2f}%')
 
         ''' Save figure & model '''
         global save_directory
-        save_directory = f'{save_directory}-oneFrame-{accuracy * 100:.2f}%'
+        save_directory = f'{save_directory}-of-{accuracy * 100:.2f}%'
+        if output_answer:
+            estimate_and_write_to_file(model, X)
+            score = get_sevenths_score(ref_file='CE200_sample/1/ground_truth.txt', est_file='test.txt')
+            print(f'\nScore: {score}')
+            save_directory = f'{save_directory}-{score * 100:.3f}'
         if not os.path.exists(save_directory):
             os.makedirs(save_directory)
         compare_figure(history, display=True)
         model.save(f'{save_directory}/model.h5')
-
-    ''' Estimate then Output '''
-    if output_answer:
-        Y_pred = model.predict_classes(X)
-        with open(output_file_path, mode='w') as f:
-            sec_per_frame = 512.0 / 22050.0
-            for index, label in enumerate(Y_pred):
-                for k, v in mapping_dict.items():
-                    if v == label:
-                        f.write(f'{sec_per_frame * index:.06f}\t{sec_per_frame * (index + 1):.06f}\t{k}\n')
-                        break
+        record_details(save_directory, accuracy, score)
 
 
 if __name__ == "__main__":
