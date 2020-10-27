@@ -13,7 +13,7 @@ FRAME_LENGTH = 512
 
 
 ''' Global variables '''
-debug_mode = True
+debug_mode = False
 if debug_mode:
     output_file_name = 'CE200_sample.csv'
     file_directory = 'CE200_sample'
@@ -23,7 +23,7 @@ else:
     file_directory = 'CE200'
     file_amount = 200
 
-data_divide_amount = 5 # For original data, set as 1
+data_divide_amount = 15 # For original data, set as 1
 
 ''' Codes '''
 def read_input_data():

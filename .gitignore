@@ -1,6 +1,5 @@
 # 競賽資料
-CE200
-CE200.csv
+CE200*
 *AIcup提供dataset說明.docx
 convert/convert.zip
 
@@ -10,3 +9,4 @@ venv4Chord
 # 程式碼
 *.pyc
 model
+test.*

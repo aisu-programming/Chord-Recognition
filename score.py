@@ -36,7 +36,7 @@ def get_sevenths_score(ref_file, est_file):
 if __name__ == "__main__":
 
     ref_file='CE200_sample/1/ground_truth.txt'
-    est_file='test.txt'
+    est_file='est_file.txt'
 
     score = get_sevenths_score(ref_file=ref_file, est_file=est_file)
     print(f'\nReference file:\t\t{ref_file}\nEstimatation file:\t{est_file}\n\nScore: {score}')
