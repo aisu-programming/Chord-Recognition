@@ -8,7 +8,7 @@ import pandas as pd
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 
 from score import get_sevenths_score
 from mapping import mapping_dict
@@ -27,17 +27,18 @@ else:
     data_directory = 'CE200'
     file_amount = 200
 
-data_divide_amount = 15
+data_divide_amount = 3
 sec_per_frame = 512.0 / 22050.0 / data_divide_amount
+each_song_data_proportion = 3.0 / 5.0
 
-frames_per_data = 75 # please set an odd number
+frames_per_data = 15 # please set an odd number
 frames_on_one_side = int((frames_per_data - 1) / 2)
 
 test_split = 0.8
 validation_split = 0.25
 
-epochs = 1
-batch_size = 976
+epochs = 50
+batch_size = 2045
 
 load_exist_model = False
 # load_model_path = 'model/2020-10-27/23.47.50/best_model_max_val_accuracy.h5'
@@ -59,11 +60,9 @@ output_answer = True
 
 ''' Codes '''
 def adjust_model(model):
-    model.add(Dense(1800, input_shape=(1800, ), activation='sigmoid'))
-    model.add(Dense(1800, input_shape=(1800, ), activation='relu'))
-    model.add(Dense(1800, input_shape=(1800, ), activation='sigmoid'))
-    model.add(Dense(1800, input_shape=(1800, ), activation='relu'))
-    model.add(Dense(544, input_shape=(1800, ), activation='softmax'))
+    model.add(Dense(720, input_shape=(360, ), activation='sigmoid'))
+    model.add(Dense(720, input_shape=(720, ), activation='relu'))
+    model.add(Dense(544, input_shape=(720, ), activation='softmax'))
     model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
     return model
 
@@ -77,6 +76,8 @@ def processData():
     Y = []
     Y_shuffle = []
 
+    error_list = []
+
     toolbar_width = 100
     sys.stdout.write("Reading data from each songs in '%s'.\n[%s]" % (data_directory, " " * toolbar_width))
     sys.stdout.flush()
@@ -87,21 +88,32 @@ def processData():
         else: read_csv_file_path = f'{data_directory}/{song_index+1}/data_divide_{data_divide_amount}.csv'
         
         data = pd.read_csv(read_csv_file_path, index_col=0)
-        data = data.drop(['Song No.', 'Frame No.'], axis=1)
         data['label'] = data['label'].map(mapping_dict)
         data = data.values
 
         label_index = data.shape[1]
         data_index = np.arange(len(data))
         np.random.shuffle(data_index)
-        data_index = data_index[:100]
-        data = np.vstack((np.zeros((frames_on_one_side, label_index)), data, np.zeros((frames_on_one_side, label_index))))
+        print(f'{int(len(data_index) * each_song_data_proportion)}:6d / {len(X):8d}')
+        data_index = data_index[:int(len(data_index) * each_song_data_proportion)]
+        data = np.vstack((np.zeros((frames_on_one_side, 25)), data, np.zeros((frames_on_one_side, 25))))
 
-        for i, shuffle_i in enumerate(data_index):
-            X.append(data[i:i+frames_per_data, 0:label_index-1].reshape((label_index-1)*frames_per_data))
-            X_shuffle.append(data[shuffle_i:shuffle_i+frames_per_data, 0:label_index-1].reshape((label_index-1)*frames_per_data))
-            Y.append(data[:, label_index-1][i+frames_on_one_side])
-            Y_shuffle.append(data[:, label_index-1][shuffle_i+frames_on_one_side])
+        for index, shuffle_index in enumerate(data_index):
+            try:
+                label = int(data[index+frames_on_one_side, label_index])
+                shuffle_label = int(data[shuffle_index+frames_on_one_side, label_index])
+                Y.append(label)
+                Y_shuffle.append(shuffle_label)
+                X.append(data[index:index+frames_per_data, 0:label_index].reshape(label_index*frames_per_data))
+                X_shuffle.append(data[shuffle_index:shuffle_index+frames_per_data, 0:label_index].reshape(label_index*frames_per_data))
+            except:
+                error_list.append({
+                    'index': index+frames_on_one_side,
+                    'label string': data[index+frames_on_one_side, label_index],
+                    'shuffle_index': shuffle_index+frames_on_one_side,
+                    'shuffle_label string': data[shuffle_index+frames_on_one_side, label_index]
+                })
+                continue
 
         if debug_mode:
             sys.stdout.write("=" * 5)
@@ -120,7 +132,14 @@ def processData():
     X_train, X_test = np.split(X_shuffle, [int(len(X_shuffle)*test_split)])
     Y_train, Y_test = np.split(Y_shuffle, [int(len(Y_shuffle)*test_split)])
     
-    return (X, Y), (X_shuffle, Y_shuffle), (X_train, Y_train), (X_test, Y_test)
+    print('Error amount: ', len(error_list))
+    print(f'Train data: {int(len(X_train)):7d} / All data: {len(X):7d}')
+    time.sleep(3)
+    # print(f'Length of X: {len(X)}, X_shuffle: {len(X_shuffle)}, Y: {len(Y)}, Y_shuffle: {len(Y_shuffle)}')
+    # os.system('pause')
+
+    # return (X, Y), (X_shuffle, Y_shuffle), (X_train, Y_train), (X_test, Y_test)
+    return (X, Y), (X_train, Y_train), (X_test, Y_test)
 
 
 def compare_figure(history):
@@ -228,7 +247,8 @@ def record_details(cost_time, test_loss, test_accuracy, original_loss, original_
 def main():
 
     ''' Data '''
-    (X, Y), (X_shuffle, Y_shuffle), (X_train, Y_train), (X_test, Y_test) = processData()
+    # (X, Y), (X_shuffle, Y_shuffle), (X_train, Y_train), (X_test, Y_test) = processData()
+    (X, Y), (X_train, Y_train), (X_test, Y_test) = processData()
 
     ''' Model '''
     model = Sequential()
@@ -262,12 +282,16 @@ def main():
             best_model_max_val_accuracy_path,
             monitor='val_accuracy', mode='max', verbose=1, save_best_only=True
         )
+        ES = EarlyStopping(
+            monitor='val_accuracy', mode='max',
+            verbose=1, patience=20
+        )
         history = model.fit(
             X_train, Y_train, 
             validation_split=validation_split,
             # validation_data=(X_test, Y_test),
             epochs=epochs, batch_size=batch_size,
-            callbacks=[MCP_min_val_loss, MCP_max_val_acc]
+            callbacks=[MCP_min_val_loss, MCP_max_val_acc, ES]
         )
 
         end_time = datetime.datetime.now()
