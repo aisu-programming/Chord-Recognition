@@ -27,22 +27,21 @@ else:
     data_directory = 'CE200'
     file_amount = 200
 
-data_divide_amount = 3
+data_divide_amount = 5
 sec_per_frame = 512.0 / 22050.0 / data_divide_amount
-each_song_data_proportion = 3.0 / 5.0
+each_song_data_proportion = 5.0 / 5.0
 
-frames_per_data = 15 # please set an odd number
+frames_per_data = 25
 frames_on_one_side = int((frames_per_data - 1) / 2)
 
-test_split = 0.8
-validation_split = 0.25
+test_split = 0.15
+validation_split = 0.2
 
-epochs = 50
-batch_size = 2045
+epochs = 500
+batch_size = 28418
 
-load_exist_model = False
-# load_model_path = 'model/2020-10-27/23.47.50/best_model_max_val_accuracy.h5'
-load_model_path = 'model/2020-10-27/23.47.50/best_model_min_val_loss.h5'
+load_exist_model = True
+load_model_path = 'model/2020-10-28/16.19.39-DMF-79.12%-83.03837/model.h5'
 
 display_figure = False
 
@@ -60,9 +59,9 @@ output_answer = True
 
 ''' Codes '''
 def adjust_model(model):
-    model.add(Dense(720, input_shape=(360, ), activation='sigmoid'))
-    model.add(Dense(720, input_shape=(720, ), activation='relu'))
-    model.add(Dense(544, input_shape=(720, ), activation='softmax'))
+    model.add(Dense(900, input_shape=(600, ), activation='sigmoid'))
+    model.add(Dense(900, input_shape=(900, ), activation='relu'))
+    model.add(Dense(544, input_shape=(900, ), activation='softmax'))
     model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
     return model
 
@@ -91,10 +90,10 @@ def processData():
         data['label'] = data['label'].map(mapping_dict)
         data = data.values
 
-        label_index = data.shape[1]
+        label_index = data.shape[1]-1
         data_index = np.arange(len(data))
         np.random.shuffle(data_index)
-        print(f'{int(len(data_index) * each_song_data_proportion)}:6d / {len(X):8d}')
+        # print(f'{int(len(data_index) * each_song_data_proportion)}:6d / {len(X):8d}')
         data_index = data_index[:int(len(data_index) * each_song_data_proportion)]
         data = np.vstack((np.zeros((frames_on_one_side, 25)), data, np.zeros((frames_on_one_side, 25))))
 
@@ -129,11 +128,11 @@ def processData():
     Y = to_categorical(Y, num_classes=len(mapping_dict))
     Y_shuffle = to_categorical(Y_shuffle, num_classes=len(mapping_dict))
 
-    X_train, X_test = np.split(X_shuffle, [int(len(X_shuffle)*test_split)])
-    Y_train, Y_test = np.split(Y_shuffle, [int(len(Y_shuffle)*test_split)])
+    X_train, X_test = np.split(X_shuffle, [int(len(X_shuffle)*(1.0-test_split))])
+    Y_train, Y_test = np.split(Y_shuffle, [int(len(Y_shuffle)*(1.0-test_split))])
     
     print('Error amount: ', len(error_list))
-    print(f'Train data: {int(len(X_train)):7d} / All data: {len(X):7d}')
+    print(f'Train data: {int(len(X_train)):7d} / All data: {len(X):7d}\n')
     time.sleep(3)
     # print(f'Length of X: {len(X)}, X_shuffle: {len(X_shuffle)}, Y: {len(Y)}, Y_shuffle: {len(Y_shuffle)}')
     # os.system('pause')
@@ -183,7 +182,6 @@ def estimate_and_write_to_file(model):
         else: read_csv_file_path = f'{data_directory}/{song_index+1}/data_divide_{data_divide_amount}.csv'
 
         data = pd.read_csv(read_csv_file_path, index_col=0)
-        data = data.drop(['Song No.', 'Frame No.'], axis=1)
         data['label'] = data['label'].map(mapping_dict)
         data = data.values
 
@@ -197,7 +195,6 @@ def estimate_and_write_to_file(model):
             
         X = np.array(X)
         Y_pred = model.predict_classes(X)
-        # ref_file_path = f'{data_directory}/{song_index+1}/ground_truth.txt'
         with open(f'{data_directory}/{song_index+1}/est_file.txt', mode='w') as f:
             index_now = 0
             index_last = 0
@@ -253,14 +250,20 @@ def main():
     ''' Model '''
     model = Sequential()
     if load_exist_model:
-        pass
-        # model = load_model(load_model_path)
+
+        model = load_model(load_model_path)
         # loss, accuracy = model.evaluate(X, Y)
         # print(f'\nEvaluate with original data (all) - Loss: {loss}, Accuracy: {accuracy * 100:.3f}%')
-        # if output_answer:
-        #     estimate_and_write_to_file(model)
-        #     score = get_sevenths_score(ref_file='CE200_sample/1/ground_truth.txt', est_file=f'est_file.txt')
-        #     print(f'\nScore: {score}')
+        
+        estimate_and_write_to_file(model)
+        score = 0
+        for song_index in range(file_amount):
+            ref_file_path = f'{data_directory}/{song_index+1}/ground_truth.txt'
+            est_file = f'{data_directory}/{song_index+1}/est_file.txt'
+            score += get_sevenths_score(ref_file=ref_file_path, est_file=est_file)
+        score /= file_amount
+        print(f"\nAverage score by model: {score}")
+
     else:
         model = adjust_model(model)
         os.system('cls')
@@ -324,7 +327,6 @@ def main():
                 model = load_model(model_path)
                 estimate_and_write_to_file(model)
                 for song_index in range(file_amount):
-                    print(song_index+1)
                     ref_file_path = f'{data_directory}/{song_index+1}/ground_truth.txt'
                     est_file = f'{data_directory}/{song_index+1}/est_file.txt'
                     score += get_sevenths_score(ref_file=ref_file_path, est_file=est_file)
