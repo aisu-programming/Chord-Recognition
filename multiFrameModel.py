@@ -19,7 +19,7 @@ RAMDON_SEED = 1
 
 
 ''' Global variables'''
-debug_mode = False
+debug_mode = True
 if debug_mode:
     data_directory = 'CE200_sample'
     file_amount = 20
@@ -36,7 +36,7 @@ frames_on_one_side = int((frames_per_data - 1) / 2)
 test_split = 0.8
 validation_split = 0.25
 
-epochs = 1000
+epochs = 1
 batch_size = 976
 
 load_exist_model = False
@@ -81,7 +81,7 @@ def processData():
     sys.stdout.write("Reading data from each songs in '%s'.\n[%s]" % (data_directory, " " * toolbar_width))
     sys.stdout.flush()
     sys.stdout.write("\b" * (toolbar_width+1))
-    for song_index in range(1):
+    for song_index in range(file_amount):
     
         if data_divide_amount == 1: read_csv_file_path = f'{data_directory}/{song_index+1}/data.csv'
         else: read_csv_file_path = f'{data_directory}/{song_index+1}/data_divide_{data_divide_amount}.csv'
@@ -91,16 +91,17 @@ def processData():
         data['label'] = data['label'].map(mapping_dict)
         data = data.values
 
-        label_index = data.shape[1]-1
+        label_index = data.shape[1]
         data_index = np.arange(len(data))
         np.random.shuffle(data_index)
-        data = np.vstack((np.zeros((frames_on_one_side, 25)), data, np.zeros((frames_on_one_side, 25))))
+        data_index = data_index[:100]
+        data = np.vstack((np.zeros((frames_on_one_side, label_index)), data, np.zeros((frames_on_one_side, label_index))))
 
         for i, shuffle_i in enumerate(data_index):
-            X.append(data[i:i+frames_per_data, 0:label_index].reshape(label_index*frames_per_data))
-            X_shuffle.append(data[shuffle_i:shuffle_i+frames_per_data, 0:label_index].reshape(label_index*frames_per_data))
-            Y.append(data[:, label_index][i+frames_on_one_side])
-            Y_shuffle.append(data[:, label_index][shuffle_i+frames_on_one_side])
+            X.append(data[i:i+frames_per_data, 0:label_index-1].reshape((label_index-1)*frames_per_data))
+            X_shuffle.append(data[shuffle_i:shuffle_i+frames_per_data, 0:label_index-1].reshape((label_index-1)*frames_per_data))
+            Y.append(data[:, label_index-1][i+frames_on_one_side])
+            Y_shuffle.append(data[:, label_index-1][shuffle_i+frames_on_one_side])
 
         if debug_mode:
             sys.stdout.write("=" * 5)
@@ -108,6 +109,8 @@ def processData():
         elif (song_index + 1) % (file_amount / toolbar_width) == 0:
             sys.stdout.write("=")
             sys.stdout.flush()
+
+    sys.stdout.write("]\n\n")
 
     X = np.array(X)
     X_shuffle = np.array(X_shuffle)
@@ -149,21 +152,47 @@ def compare_figure(history):
     return
 
 
-def estimate_and_write_to_file(model, X):
-    print(f"\nEstimating and write to 'est_file.txt'... ", end='')
-    Y_pred = model.predict_classes(X)
-    with open(f'est_file.txt', mode='w') as f:
-        index_now = 0
-        index_last = 0
-        while index_now < len(Y_pred):
-            if (index_now == len(Y_pred) - 1) or (Y_pred[index_now] != Y_pred[index_now+1]):
-                for k, v in mapping_dict.items():
-                    if v == Y_pred[index_now]:
-                        f.write(f'{sec_per_frame*index_last:.06f}\t{sec_per_frame*(index_now+1):.06f}\t{k}\n')
-                        index_last = index_now + 1
-                        break
-            index_now += 1
-    print('Done.')
+def estimate_and_write_to_file(model):
+
+    print('\n')
+
+    for song_index in range(file_amount):
+
+        print(f"Estimating and write to '{data_directory}/{song_index+1}/est_file.txt'... ", end='')
+
+        if data_divide_amount == 1: read_csv_file_path = f'{data_directory}/{song_index+1}/data.csv'
+        else: read_csv_file_path = f'{data_directory}/{song_index+1}/data_divide_{data_divide_amount}.csv'
+
+        data = pd.read_csv(read_csv_file_path, index_col=0)
+        data = data.drop(['Song No.', 'Frame No.'], axis=1)
+        data['label'] = data['label'].map(mapping_dict)
+        data = data.values
+
+        label_index = data.shape[1]
+        original_data_length = len(data)
+        data = np.vstack((np.zeros((frames_on_one_side, label_index)), data, np.zeros((frames_on_one_side, label_index))))
+
+        X = []
+        for i in range(original_data_length):
+            X.append(data[i:i+frames_per_data, 0:label_index-1].reshape((label_index-1)*frames_per_data))
+            
+        X = np.array(X)
+        Y_pred = model.predict_classes(X)
+        # ref_file_path = f'{data_directory}/{song_index+1}/ground_truth.txt'
+        with open(f'{data_directory}/{song_index+1}/est_file.txt', mode='w') as f:
+            index_now = 0
+            index_last = 0
+            while index_now < len(Y_pred):
+                if (index_now == len(Y_pred) - 1) or (Y_pred[index_now] != Y_pred[index_now+1]):
+                    for k, v in mapping_dict.items():
+                        if v == Y_pred[index_now]:
+                            f.write(f'{sec_per_frame*index_last:.06f}\t{sec_per_frame*(index_now+1):.06f}\t{k}\n')
+                            index_last = index_now + 1
+                            break
+                index_now += 1
+
+        print('Done.')
+
     return
 
 
@@ -199,18 +228,19 @@ def record_details(cost_time, test_loss, test_accuracy, original_loss, original_
 def main():
 
     ''' Data '''
-    (X, Y), (X_train, Y_shuffle), (X_train, Y_train), (X_test, Y_test) = processData()
+    (X, Y), (X_shuffle, Y_shuffle), (X_train, Y_train), (X_test, Y_test) = processData()
 
     ''' Model '''
     model = Sequential()
     if load_exist_model:
-        model = load_model(load_model_path)
-        loss, accuracy = model.evaluate(X, Y)
-        print(f'\nEvaluate with original data (all) - Loss: {loss}, Accuracy: {accuracy * 100:.3f}%')
-        if output_answer:
-            estimate_and_write_to_file(model, X)
-            score = get_sevenths_score(ref_file='CE200_sample/1/ground_truth.txt', est_file=f'est_file.txt')
-            print(f'\nScore: {score}')
+        pass
+        # model = load_model(load_model_path)
+        # loss, accuracy = model.evaluate(X, Y)
+        # print(f'\nEvaluate with original data (all) - Loss: {loss}, Accuracy: {accuracy * 100:.3f}%')
+        # if output_answer:
+        #     estimate_and_write_to_file(model)
+        #     score = get_sevenths_score(ref_file='CE200_sample/1/ground_truth.txt', est_file=f'est_file.txt')
+        #     print(f'\nScore: {score}')
     else:
         model = adjust_model(model)
         os.system('cls')
@@ -264,14 +294,20 @@ def main():
             }
             model_scores = {}
             best_score = 0
+            score = 0
             for model_name, model_path in model_paths.items():
                 model = Sequential()
                 model = load_model(model_path)
-                estimate_and_write_to_file(model, X)
-                score = get_sevenths_score(ref_file='CE200_sample/1/ground_truth.txt', est_file=f'est_file.txt')
+                estimate_and_write_to_file(model)
+                for song_index in range(file_amount):
+                    print(song_index+1)
+                    ref_file_path = f'{data_directory}/{song_index+1}/ground_truth.txt'
+                    est_file = f'{data_directory}/{song_index+1}/est_file.txt'
+                    score += get_sevenths_score(ref_file=ref_file_path, est_file=est_file)
+                score /= file_amount
                 model_scores[model_name] = score
                 if score > best_score: best_score = score
-                print(f"\nScore by '{model_name}' model: {score}")
+                print(f"\nAverage score by '{model_name}' model: {score}")
             rename_save_directory = f'{rename_save_directory}-{best_score * 100:.5f}'
 
         record_details(cost_time, test_loss, test_accuracy, original_loss, original_accuracy, model_scores)

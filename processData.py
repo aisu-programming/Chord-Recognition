@@ -13,7 +13,7 @@ FRAME_LENGTH = 512
 
 
 ''' Global variables '''
-debug_mode = False
+debug_mode = True
 if debug_mode:
     output_file_name = 'CE200_sample.csv'
     file_directory = 'CE200_sample'
