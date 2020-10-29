@@ -1,6 +1,13 @@
 ''' Libraries '''
 import mir_eval
 
+from mapping import my_mapping_dict
+
+
+''' Parameters '''
+REFERENCE_ERROR_REPAIR = True
+REFERENCE_ERROR_REPAIR_POINT = 1
+
 
 ''' Codes '''
 def get_sevenths_score(ref_file, est_file):
@@ -28,6 +35,16 @@ def get_sevenths_score(ref_file, est_file):
 
     durations = mir_eval.util.intervals_to_durations(intervals)
     comparisons = mir_eval.chord.sevenths(ref_labels, est_labels)
+
+    if REFERENCE_ERROR_REPAIR:
+        for index in range(len(comparisons)):
+            if comparisons[index] == -1:
+                comparisons[index] = REFERENCE_ERROR_REPAIR_POINT
+
+    # for index, comparison in enumerate(comparisons):
+    #     if ('(' in ref_labels[index] or '/' in ref_labels[index]) and comparison != 0:
+    #         print(f'ref_label <---> est_label:   {ref_labels[index]:10} <---> {est_labels[index]:10}: {comparison} * {durations[index]}')
+
     score = mir_eval.chord.weighted_accuracy(comparisons, durations)
     return score
 
@@ -35,8 +52,16 @@ def get_sevenths_score(ref_file, est_file):
 ''' Testing '''
 if __name__ == "__main__":
 
-    ref_file='CE200_sample/1/ground_truth.txt'
-    est_file='est_file.txt'
+    average_score = 0
 
-    score = get_sevenths_score(ref_file=ref_file, est_file=est_file)
-    print(f'\nReference file:\t\t{ref_file}\nEstimatation file:\t{est_file}\n\nScore: {score}')
+    for i in range(200):
+
+        ref_file = f'CE200/{i+1}/ground_truth.txt'
+        est_file = f'CE200/{i+1}/est_file.txt'
+
+        score = get_sevenths_score(ref_file=ref_file, est_file=est_file)
+        print(f'\nReference file:\t\t{ref_file}\nEstimatation file:\t{est_file}\n\nScore: {score}')
+
+        average_score += score
+
+    print(average_score / 200)

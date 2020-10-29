@@ -11,12 +11,15 @@ from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 
 from score import get_sevenths_score
-from mapping import mapping_dict, short_mapping_dict
+from mapping import my_mapping_dict
 
 
 ''' Parameters '''
-RAMDON_SEED = 2
+RAMDON_SEED = 1
 
+EPOCHS = 3000
+BATCH_SIZE = 305600
+PATIENCE = 100
 
 ''' Global variables'''
 debug_mode = False
@@ -32,11 +35,10 @@ train_proportion = 0.4
 data_divide_amount = 1
 sec_per_frame = 512.0 / 22050.0 / data_divide_amount
 
-frames_per_data = data_divide_amount * 11
+frames_per_data = data_divide_amount * 21
 frames_on_one_side = int((frames_per_data - 1) / 2)
 
-epochs = 1000
-batch_size = 87075
+mapping_dictionary = my_mapping_dict
 
 load_exist_model = False
 load_model_path = 'model/2020-10-28/20.57.14'
@@ -57,32 +59,11 @@ output_answer = True
 
 ''' Codes '''
 def adjust_model(model):
-    model.add(Dense(400, input_shape=(264, ), activation='relu'))
-    model.add(Dense(400, input_shape=(264, ), activation='relu'))       # 1
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 2
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 3
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 4
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 5
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 6
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 7
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 8
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 9
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 10
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 11
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 12
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 13
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 14
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 15
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 16
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 17
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 18
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 19
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 20
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 21
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 22
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 23
-    model.add(Dense(400, input_shape=(400, ), activation='relu'))       # 24
-    model.add(Dense(544, input_shape=(400, ), activation='softmax'))
+    model.add(Dense(504, input_shape=(504, ), activation='sigmoid'))
+    model.add(Dense(504, input_shape=(504, ), activation='relu'))
+    # model.add(Dense(504, input_shape=(504, ), activation='sigmoid'))
+    # model.add(Dense(504, input_shape=(504, ), activation='relu'))
+    model.add(Dense(len(mapping_dictionary), input_shape=(504, ), activation='softmax'))
     model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
     return model
 
@@ -109,24 +90,28 @@ def processData(train_file_index):
         else: read_csv_file_path = f'{data_directory}/{song_index+1}/data_divide_{data_divide_amount}.csv'
         
         data = pd.read_csv(read_csv_file_path, index_col=0)
-
-        data['label'] = data['label'].map(mapping_dict)
-        # for index, label in enumerate(data['label']):
-        #     if label in short_mapping_dict.keys(): data['label'][index] = short_mapping_dict[label]
-        #     else: data['label'][index] = short_mapping_dict['Other']
-
         data = data.values
 
         label_index = data.shape[1]-1
         data_index = np.arange(len(data))
         np.random.shuffle(data_index)
-        data_index = data_index[:int(len(data_index) * 1)]
+        data_index = data_index[:int(len(data_index) * 0.75)]
         data = np.vstack((np.zeros((frames_on_one_side, 25)), data, np.zeros((frames_on_one_side, 25))))
 
         for index, shuffle_index in enumerate(data_index):
             try:
-                label = int(data[index+frames_on_one_side, label_index])
-                shuffle_label = int(data[shuffle_index+frames_on_one_side, label_index])
+                label = int(mapping_dictionary['Other'])
+                for chord in mapping_dictionary.keys():
+                    if chord in str(data[index+frames_on_one_side, label_index]).strip():
+                        label = int(mapping_dictionary[chord])
+                        break
+
+                shuffle_label = int(mapping_dictionary['Other'])
+                for chord in mapping_dictionary.keys():
+                    if chord in str(data[shuffle_index+frames_on_one_side, label_index]).strip():
+                        shuffle_label = int(mapping_dictionary[chord])
+                        break
+
                 X.append(data[index:index+frames_per_data, 0:label_index].reshape(label_index*frames_per_data))
                 Y.append(label)
                 if song_index in train_file_index:
@@ -142,7 +127,6 @@ def processData(train_file_index):
                     'shuffle_index': shuffle_index+frames_on_one_side,
                     'shuffle_label string': data[shuffle_index+frames_on_one_side, label_index]
                 })
-                continue
 
         if debug_mode:
             sys.stdout.write("=" * 5)
@@ -153,12 +137,12 @@ def processData(train_file_index):
 
     sys.stdout.write("]\n\n")
 
-    X = np.array(X)
-    X_train = np.array(X_train)
-    X_validation = np.array(X_validation)
-    Y = to_categorical(Y, num_classes=len(mapping_dict))
-    Y_train = to_categorical(Y_train, num_classes=len(mapping_dict))
-    Y_validation = to_categorical(Y_validation, num_classes=len(mapping_dict))
+    X = np.asarray(X).astype(np.float32)
+    X_train = np.asarray(X_train).astype(np.float32)
+    X_validation = np.asarray(X_validation).astype(np.float32)
+    Y = to_categorical(Y, num_classes=len(mapping_dictionary))
+    Y_train = to_categorical(Y_train, num_classes=len(mapping_dictionary))
+    Y_validation = to_categorical(Y_validation, num_classes=len(mapping_dictionary))
     
     print('Error amount: ', len(error_list))
     print(f'Train data: {int(len(X_train)):7d} / All data: {len(X):7d}\n')
@@ -209,7 +193,8 @@ def estimate_and_write_to_file(model):
         else: read_csv_file_path = f'{data_directory}/{song_index+1}/data_divide_{data_divide_amount}.csv'
 
         data = pd.read_csv(read_csv_file_path, index_col=0)
-        data['label'] = data['label'].map(mapping_dict)
+        # 這邊用不到 label，就不處理了
+        # data['label'] = data['label'].map(mapping_dict)
         data = data.values
 
         label_index = data.shape[1]
@@ -220,16 +205,17 @@ def estimate_and_write_to_file(model):
         for i in range(original_data_length):
             X.append(data[i:i+frames_per_data, 0:label_index-1].reshape((label_index-1)*frames_per_data))
             
-        X = np.array(X)
+        X = np.array(X).astype(np.float32)
         Y_pred = model.predict_classes(X)
         with open(f'{data_directory}/{song_index+1}/est_file.txt', mode='w') as f:
             index_now = 0
             index_last = 0
             while index_now < len(Y_pred):
                 if (index_now == len(Y_pred) - 1) or (Y_pred[index_now] != Y_pred[index_now+1]):
-                    for k, v in mapping_dict.items():
+                    for k, v in mapping_dictionary.items():
                         if v == Y_pred[index_now]:
-                            f.write(f'{sec_per_frame*index_last:.06f}\t{sec_per_frame*(index_now+1):.06f}\t{k}\n')
+                            if k == 'Other': f.write(f'{sec_per_frame*index_last:.06f}\t{sec_per_frame*(index_now+1):.06f}\tN\n')
+                            else: f.write(f'{sec_per_frame*index_last:.06f}\t{sec_per_frame*(index_now+1):.06f}\t{k}\n')
                             index_last = index_now + 1
                             break
                 index_now += 1
@@ -245,7 +231,7 @@ def estimate_and_write_to_file(model):
     return
 
 
-def record_details(cost_time, validation_loss, validation_accuracy, original_loss, original_accuracy, model_scores):
+def record_details(cost_time, model_scores):
     print(f"\nRecording details... ", end='')
     with open(f'{save_directory}/details.txt', mode='w') as f:
         f.write(f'RAMDON_SEED = {RAMDON_SEED}\n')
@@ -253,14 +239,14 @@ def record_details(cost_time, validation_loss, validation_accuracy, original_los
         f.write(f'data_divide_amount = {data_divide_amount}\n')
         f.write(f'frames_per_data = {frames_per_data}\n')
         f.write(f'\n')
-        f.write(f'epochs = {epochs}\n')
-        f.write(f'batch_size = {batch_size}\n')
+        f.write(f'epochs = {EPOCHS}\n')
+        f.write(f'batch_size = {BATCH_SIZE}\n')
         f.write(f'\n')
         f.write(f'cost_time: {cost_time}\n')
-        f.write(f'validation_loss: {validation_loss}\n')
-        f.write(f'validation_accuracy: {validation_accuracy}\n')
-        f.write(f'original_loss (all data): {original_loss}\n')
-        f.write(f'original_accuracy (all data): {original_accuracy}\n')
+        # f.write(f'validation_loss: {validation_loss}\n')
+        # f.write(f'validation_accuracy: {validation_accuracy}\n')
+        # f.write(f'original_loss (all data): {original_loss}\n')
+        # f.write(f'original_accuracy (all data): {original_accuracy}\n')
         f.write(f'\n')
         for model_name, model_score in model_scores.items():
             f.write(f"Score by '{model_name}' model: {model_score}\n")
@@ -338,30 +324,39 @@ def main():
             best_model_max_val_accuracy_path,
             monitor='val_accuracy', mode='max', verbose=1, save_best_only=True
         )
-        ES = EarlyStopping(
+        # ES_min_loss = EarlyStopping(
+        #     monitor='loss', mode='min',
+        #     verbose=1, patience=20
+        # )
+        # ES_min_val_loss = EarlyStopping(
+        #     monitor='val_loss', mode='min',
+        #     verbose=1, patience=50
+        # )
+        ES_max_val_accuracy = EarlyStopping(
             monitor='val_accuracy', mode='max',
-            verbose=1, patience=50
+            verbose=1, patience=PATIENCE
         )
         history = model.fit(
             X_train, Y_train, 
             # validation_split=validation_split,
             validation_data=(X_validation, Y_validation),
-            epochs=epochs, batch_size=batch_size,
-            callbacks=[MCP_min_val_loss, MCP_max_val_acc, ES]
+            epochs=EPOCHS, batch_size=BATCH_SIZE,
+            callbacks=[MCP_min_val_loss, MCP_max_val_acc, ES_max_val_accuracy]
         )
 
         end_time = datetime.datetime.now()
         cost_time = str(end_time-start_time)
 
         print(f'\nLearning cost time: {cost_time}\n')
-        validation_loss, validation_accuracy = model.evaluate(X_validation, Y_validation)
-        print(f'Evaluate with validation data - Loss: {validation_loss}, Accuracy: {validation_accuracy * 100:.2f}%\n')
-        original_loss, original_accuracy = model.evaluate(X, Y)
-        print(f'Evaluate with original data (all) - Loss: {original_loss}, Accuracy: {original_accuracy * 100:.2f}%')
+        # validation_loss, validation_accuracy = model.evaluate(X_validation, Y_validation)
+        # print(f'Evaluate with validation data - Loss: {validation_loss}, Accuracy: {validation_accuracy * 100:.2f}%\n')
+        # original_loss, original_accuracy = model.evaluate(X, Y)
+        # print(f'Evaluate with original data (all) - Loss: {original_loss}, Accuracy: {original_accuracy * 100:.2f}%')
         
         ''' Save figure & model '''
-        if data_divide_amount == 1: rename_save_directory = f'{rename_save_directory}-MF-{original_accuracy * 100:.2f}%'
-        else: rename_save_directory = f'{rename_save_directory}-DMF-{original_accuracy * 100:.2f}%'
+        if data_divide_amount == 1: rename_save_directory = f'{rename_save_directory}-MF'
+        else: rename_save_directory = f'{rename_save_directory}-DMF'
+        # rename_save_directory = f'{rename_save_directory}-{validation_accuracy * 100:.2f}%'
         
         compare_figure(history)
         model.save(last_model_path)
@@ -389,7 +384,7 @@ def main():
                 print(f"\nAverage validation score by '{model_name}' model: {score}")
             rename_save_directory = f'{rename_save_directory}-{best_score * 100:.5f}'
 
-        record_details(cost_time, validation_loss, validation_accuracy, original_loss, original_accuracy, model_scores)
+        record_details(cost_time, model_scores)
 
         os.rename(save_directory, rename_save_directory)
 
