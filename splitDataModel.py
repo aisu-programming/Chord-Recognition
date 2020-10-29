@@ -27,8 +27,6 @@ else:
     data_directory = 'CE200'
     file_amount = 200
 
-train_proportion = 0.4
-
 data_divide_amount = 1
 sec_per_frame = 512.0 / 22050.0 / data_divide_amount
 
@@ -273,8 +271,8 @@ def main():
     np.random.seed(RAMDON_SEED)
     file_index = np.arange(file_amount)
     np.random.shuffle(file_index)
-    train_file_index = file_index[:int(file_amount * train_proportion)]
-    validation_file_index = file_index[int(file_amount * train_proportion):]
+    train_file_index = file_index[:int(file_amount * 0.4)]
+    validation_file_index = file_index[int(file_amount * 0.4):]
 
     ''' Model '''
     model = Sequential()
