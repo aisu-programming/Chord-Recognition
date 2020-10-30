@@ -86,6 +86,6 @@ if __name__ == "__main__":
     if not output_details: sys.stdout.write("]\n\n")
 
     if output_details: print(f'\n--------------------------------------------------\n')
-    print(f'Average score not repaired:       {average_score / 200}')
-    print(f'Average score repaired (point=0): {average_repair_0_score / 200}')
-    print(f'Average score repaired (point=1): {average_repair_1_score / 200}')
+    print(f'Average score not repaired         : {average_score / 200}')
+    print(f'Average score repaired (point = 0) : {average_repair_0_score / 200}')
+    print(f'Average score repaired (point = 1) : {average_repair_1_score / 200}')

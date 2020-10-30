@@ -14,7 +14,7 @@ FRAME_LENGTH = 512
 
 
 ''' Global variables '''
-data_divide_amount = 1 # For original data, set as 1
+data_divide_amount = 10 # For original data, set as 1
 
 debug_mode = False
 if debug_mode:
@@ -32,9 +32,7 @@ def read_input_data(song_index, data_divide_amount):
     with open(file_name) as f:
         data = json.load(f)
 
-    chroma_cqt = np.array(data['chroma_cqt'])
-    chroma_cens = np.array(data['chroma_cens'])
-    input_data = np.vstack((chroma_cqt, chroma_cens)).transpose()
+    input_data = np.array(data['chroma_cqt'] + data['chroma_cens']).transpose()
 
     if data_divide_amount > 1:
         divided_input_data = []
@@ -46,10 +44,10 @@ def read_input_data(song_index, data_divide_amount):
                     input_data[data_index] * ((data_divide_amount - divide_index) / data_divide_amount) +
                     input_data[data_index + 1] * (divide_index / data_divide_amount)
                 )
-    else:
-        divided_input_data = [ data for data in input_data ]
+        return divided_input_data
 
-    return divided_input_data
+    else:
+        return input_data
 
 
 def process_answer_data(song_index, input_data, data_divide_amount):
@@ -61,7 +59,6 @@ def process_answer_data(song_index, input_data, data_divide_amount):
             row = f.readline()
             if row == '': break
             row_data = row[:-1].split('\t')
-            # start_time = float(row_data[0])
             end_time = float(row_data[1])
             label = row_data[2]
             answer_reference.append({
@@ -109,23 +106,17 @@ def match_data_and_write_into_csv():
         input_data = read_input_data(song_index, data_divide_amount)
         answer_data = process_answer_data(song_index, input_data, data_divide_amount)
 
-        # # 刪除多餘的辨識答案
-        # while len(answer_data[index]) > len(input_data[index]):
-        #     answer_data[index].pop()
-        # # 填補欠缺的辨識答案
-        # while len(answer_data[index]) < len(input_data[index]):
-        #     answer_data[index].append('N')
+        combined_data = [ list(data) for data in input_data ]
+        for i in range(len(combined_data)):
+            combined_data[i].append(answer_data[i])
 
-        input_data = np.array(input_data)
-        answer_data = np.array([answer_data]).transpose()
-        combined_data = np.hstack((input_data, answer_data))
-        data = pd.DataFrame(combined_data, columns=columns)
-
+        combined_data = np.array(combined_data)
+        combined_data = pd.DataFrame(combined_data, columns=columns)
         if data_divide_amount == 1:
             csv_file_path = f'{file_directory}/{song_index+1}/data.csv'
         else:
             csv_file_path = f'{file_directory}/{song_index+1}/data_divide_{data_divide_amount}.csv'
-        data.to_csv(csv_file_path)
+        combined_data.to_csv(csv_file_path)
 
         if debug_mode:
             sys.stdout.write("=" * 5)
