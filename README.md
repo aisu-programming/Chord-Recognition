@@ -2,6 +2,15 @@
 ---
 [AI CUP 2020 - 和弦辨識競賽](https://aidea-web.tw/topic/43d9cc47-b70e-4751-80d3-a2d7333eb77b)
 
+## 設備與環境
+- 硬體：
+  - CPU：i7-9700
+  - GPU：RTX 2070
+- 軟體：
+  - Cuda：cuda_**11.0**.2_451.48_win10
+  - cuDNN：cudnn-11.0-windows-x64-v**8.0.4**.30
+  - TensorFlow：tensorflow-**2.4**.0
+
 ## 開發流程
 1. answerAnalyze.py: 
    以 CMD 觀察數據。

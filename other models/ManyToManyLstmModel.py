@@ -6,7 +6,7 @@ import datetime
 import numpy as np
 import pandas as pd
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, LSTM, BatchNormalization, Dropout
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.callbacks import EarlyStopping
 
@@ -18,8 +18,9 @@ from mapping import my_mapping_dict
 RAMDON_SEED = 1
 
 EPOCHS = 1000
-BATCH_SIZE = 200000
-PATIENCE = 50
+BATCH_SIZE = 50000
+BATCH_SLICE = 20
+PATIENCE = 30
 
 ''' Global variables'''
 debug_mode = False
@@ -33,8 +34,8 @@ else:
 data_divide_amount = 1
 sec_per_frame = 512.0 / 22050.0 / data_divide_amount
 
-frames_per_data = data_divide_amount * 7
-one_side_frames = int((frames_per_data - 1) / 2)
+# frames_per_data = data_divide_amount * 7
+frames_before = 30
 
 mapping_dictionary = my_mapping_dict
 
@@ -56,12 +57,19 @@ output_answer = True
 
 
 ''' Codes '''
-def adjust_model(model):
-    model.add(Dense(252, input_shape=(168, ), activation='relu'))
-    model.add(Dense(252, input_shape=(252, ), activation='sigmoid'))
-    model.add(Dense(252, input_shape=(252, ), activation='relu'))
-    model.add(Dense(len(mapping_dictionary), input_shape=(252, ), activation='softmax'))
-    model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
+def build_model():
+    model = Sequential()
+    model.add(LSTM(45, input_length=frames_before, input_dim=24, return_sequences=True))
+    model.add(BatchNormalization())
+    model.add(LSTM(60, return_sequences=True))
+    model.add(BatchNormalization())
+    model.add(LSTM(75, return_sequences=True))
+    model.add(BatchNormalization())
+    model.add(Dropout(0.6))
+    model.add(Dense(len(mapping_dictionary), activation='softmax'))
+    model.compile(loss="mse", optimizer="adam", metrics=["accuracy"])
+    model.summary()
+    print('')
     return model
 
 
@@ -78,7 +86,7 @@ def readAndSplitData(train_file_index):
     filling_row = [0.0] * 24
     for song_index in range(file_amount):
 
-        for _ in range(one_side_frames):
+        for _ in range(frames_before):
             if song_index in train_file_index:
                 X['train'].append(filling_row)
                 Y['train'].append(0)
@@ -119,11 +127,11 @@ def readAndSplitData(train_file_index):
             sys.stdout.write("=")
             sys.stdout.flush()
     
-    for _ in range(one_side_frames):
-        X['train'].append(filling_row)
-        Y['train'].append(0)
-        X['validation'].append(filling_row)
-        Y['validation'].append(0)
+    # for _ in range(frames_before):
+    #     X['train'].append(filling_row)
+    #     Y['train'].append(0)
+    #     X['validation'].append(filling_row)
+    #     Y['validation'].append(0)
 
     sys.stdout.write("]\n\n")
 
@@ -133,7 +141,7 @@ def readAndSplitData(train_file_index):
     Y['validation'] = to_categorical(Y['validation'], num_classes=len(mapping_dictionary))
     
     print(f"Train data: {len(X['train']):7d} / All data: {len(X['validation']) + len(X['train']):7d}\n")
-    time.sleep(3)
+    # time.sleep(3)
 
     return X, Y
 
@@ -167,10 +175,10 @@ def compare_figure(history):
     return
 
 
-def estimate_and_write_to_file(model):
+def estimate_and_write_to_file(model_dict):
 
     toolbar_width = 100
-    sys.stdout.write(f"\nEstimating and write to '{data_directory}/xxx/est_file.txt'.\n[%s]" % (" " * toolbar_width))
+    sys.stdout.write(f"\nEstimating and write to est_files.\n[%s]" % (" " * toolbar_width))
     sys.stdout.flush()
     sys.stdout.write("\b" * (toolbar_width+1))
 
@@ -187,28 +195,30 @@ def estimate_and_write_to_file(model):
         
         filling_row = [0.0] * 24
         data = []
-        for _ in range(one_side_frames): data.append(filling_row)
+        for _ in range(frames_before): data.append(filling_row)
         for row in original_data: data.append(row[: 24])
-        for _ in range(one_side_frames): data.append(filling_row)
+        # for _ in range(frames_before): data.append(filling_row)
 
         X = []
         for i in range(original_data_length):
-            X.append(data[i:i+frames_per_data][:24])
+            X.append(np.array(data)[i:i+frames_before, :24])
             
-        X = np.array(X).astype(np.float32).reshape(original_data_length, 24 * frames_per_data)
-        Y_pred = model.predict_classes(X)
-        with open(f'{data_directory}/{song_index+1}/est_file.txt', mode='w') as f:
-            index_now = 0
-            index_last = 0
-            while index_now < len(Y_pred):
-                if (index_now == len(Y_pred) - 1) or (Y_pred[index_now] != Y_pred[index_now+1]):
-                    for k, v in mapping_dictionary.items():
-                        if v == Y_pred[index_now]:
-                            if k == 'Other': f.write(f'{sec_per_frame*index_last:.06f}\t{sec_per_frame*(index_now+1):.06f}\tN\n')
-                            else: f.write(f'{sec_per_frame*index_last:.06f}\t{sec_per_frame*(index_now+1):.06f}\t{k}\n')
-                            index_last = index_now + 1
-                            break
-                index_now += 1
+        X = np.array(X).astype(np.float32) # .reshape(original_data_length, 24 * frames_per_data)
+        for model_name, model in model_dict.items():
+            Y_pred = model.predict_classes(X)
+            Y_pred = Y_pred[:, -1].reshape(len(Y_pred), )
+            with open(f'{data_directory}/{song_index+1}/est_file_{model_name}.txt', mode='w') as f:
+                index_now = 0
+                index_last = 0
+                while index_now < len(Y_pred):
+                    if (index_now == len(Y_pred) - 1) or (Y_pred[index_now] != Y_pred[index_now+1]):
+                        for k, v in mapping_dictionary.items():
+                            if v == Y_pred[index_now]:
+                                if k == 'Other': f.write(f'{sec_per_frame*index_last:.06f}\t{sec_per_frame*(index_now+1):.06f}\tN\n')
+                                else: f.write(f'{sec_per_frame*index_last:.06f}\t{sec_per_frame*(index_now+1):.06f}\t{k}\n')
+                                index_last = index_now + 1
+                                break
+                    index_now += 1
 
         if debug_mode:
             sys.stdout.write("=" * 5)
@@ -231,16 +241,16 @@ def record_details(train_file_index, validation_file_index, cost_time, model_sco
         f.write(f'PATIENCE = {PATIENCE}\n')
         f.write(f'\n')
         f.write(f'data_divide_amount = {data_divide_amount}\n')
-        f.write(f'frames_per_data = {frames_per_data}\n')
+        f.write(f'frames_before = {frames_before}\n')
         f.write(f'\n')
-        f.write(f'train_file_index: {str(train_file_index)}\n')
+        f.write(f'train_file_index:\n{str(train_file_index)}\n')
         f.write(f'\n')
-        f.write(f'validation_file_index: {str(validation_file_index)}\n')
+        f.write(f'validation_file_index:\n{str(validation_file_index)}\n')
         f.write(f'\n')
         f.write(f'cost_time: {cost_time}\n')
         f.write(f'\n')
         for model_name, model_score in model_scores.items():
-            f.write(f"Score by '{model_name}' model: {model_score}\n")
+            f.write(f"Score by '{model_name}' model:\n{model_score}\n")
     print('Done.')
     return
 
@@ -254,7 +264,6 @@ def main():
     validation_file_index = file_index[int(file_amount * 0.4):]
 
     ''' Model '''
-    model = Sequential()
     if load_exist_model:
 
         model_dict = {
@@ -269,7 +278,7 @@ def main():
             # (X, Y), (X_train, Y_train), (X_validation, Y_validation) =reaAndSplitdData(train_file_index)
             # loss, accuracy = model.evaluate(X, Y)
             # print(f'\nEvaluate with original data (all) - Loss: {loss}, Accuracy: {accuracy * 100:.3f}%')
-            estimate_and_write_to_file(model)
+            estimate_and_write_to_file({'loaded': model})
         
             total_score = 0
             train_score = 0
@@ -277,7 +286,7 @@ def main():
 
             for song_index in file_index:
                 ref_file_path = f'{data_directory}/{song_index+1}/ground_truth.txt'
-                est_file = f'{data_directory}/{song_index+1}/est_file.txt'
+                est_file = f'{data_directory}/{song_index+1}/est_file_loaded.txt'
                 score = get_sevenths_score(ref_file_path, est_file)
                 total_score += score
                 if song_index in train_file_index: train_score += score
@@ -295,8 +304,8 @@ def main():
 
         X, Y = readAndSplitData(train_file_index)
 
-        model = adjust_model(model)
-        os.system('cls')
+        model = build_model()
+        # os.system('cls')
         
         if not os.path.exists(save_directory):
             os.makedirs(save_directory)
@@ -308,8 +317,8 @@ def main():
 
         start_time = datetime.datetime.now() # Set timer
 
-        train_index_array = np.arange(one_side_frames, len(X['train'])-one_side_frames)
-        validation_index_array = np.arange(one_side_frames, len(X['validation'])-one_side_frames)
+        train_index_array = np.arange(frames_before, len(X['train'])-frames_before)
+        validation_index_array = np.arange(frames_before, len(X['validation'])-frames_before)
         my_history = {'loss': [], 'accuracy': [], 'val_loss': [], 'val_accuracy': []}
         
         min_val_loss_epoch = 1
@@ -328,20 +337,21 @@ def main():
             for i in range(BATCH_SIZE):
                 ti = train_index_array[i]
                 vi = validation_index_array[i]
-                X_train_batch.append(X['train'][ti-one_side_frames:ti+one_side_frames+1])
-                Y_train_batch.append(Y['train'][ti])
-                X_validation_batch.append(X['validation'][vi-one_side_frames:vi+one_side_frames+1])
-                Y_validation_batch.append(Y['validation'][vi])
+                X_train_batch.append(X['train'][ti:ti+frames_before])
+                Y_train_batch.append(Y['train'][ti:ti+frames_before])
+                X_validation_batch.append(X['validation'][vi:vi+frames_before])
+                Y_validation_batch.append(Y['validation'][vi:vi+frames_before])
+
             print(f'epoch: {epoch+1}/{EPOCHS} | batch_size: {BATCH_SIZE}')
             history = model.fit(
-                np.array(X_train_batch).reshape(BATCH_SIZE, frames_per_data*24),
-                np.array(Y_train_batch).reshape(BATCH_SIZE, len(mapping_dictionary)),
+                np.array(X_train_batch), # .reshape(BATCH_SIZE, frames_before*24),
+                np.array(Y_train_batch), # .reshape(BATCH_SIZE, len(mapping_dictionary)),
                 validation_data=(
-                    np.array(X_validation_batch).reshape(BATCH_SIZE, frames_per_data*24),
-                    np.array(Y_validation_batch).reshape(BATCH_SIZE, len(mapping_dictionary))
+                    np.array(X_validation_batch), # .reshape(BATCH_SIZE, frames_before*24),
+                    np.array(Y_validation_batch)  # .reshape(BATCH_SIZE, len(mapping_dictionary))
                 ),
                 # epochs=EPOCHS,
-                batch_size=int(BATCH_SIZE / 5),
+                batch_size=int(BATCH_SIZE / BATCH_SLICE),
                 # callbacks=[MCP_min_val_loss, MCP_max_val_acc, ES_max_val_accuracy]
             )
             print('')
@@ -374,48 +384,48 @@ def main():
         print(f'\nLearning cost time: {cost_time}')
         
         ''' Save figure & model '''
-        if data_divide_amount == 1: rename_save_directory = f'{rename_save_directory}-MF'
-        else: rename_save_directory = f'{rename_save_directory}-DMF'
+        if data_divide_amount == 1: rename_save_directory = f'{rename_save_directory}-MFL'
+        else: rename_save_directory = f'{rename_save_directory}-DMFL'
         # rename_save_directory = f'{rename_save_directory}-{validation_accuracy * 100:.2f}%'
         
         compare_figure(my_history)
         model.save(last_model_path)
 
         if output_answer:
-            model_paths = {
-                'last': last_model_path,
-                'min val_loss': best_model_min_val_loss_path,
-                'max val_accuracy': best_model_max_val_accuracy_path,
-            }
+
             model_scores = {}
+
             best_score_not_repaired = 0
-            score_not_repaired = 0
-            score_repaired_0 = 0
-            score_repaired_1 = 0
-            for model_name, model_path in model_paths.items():
-                model = Sequential()
-                model = load_model(model_path)
-                estimate_and_write_to_file(model)
-                for song_index in validation_file_index:
+            score_not_repaired = {'last': 0, 'min_val_loss': 0, 'max_val_acc': 0}
+            score_repaired_0   = {'last': 0, 'min_val_loss': 0, 'max_val_acc': 0}
+            score_repaired_1   = {'last': 0, 'min_val_loss': 0, 'max_val_acc': 0}
+
+            estimate_and_write_to_file({
+                'last': load_model(last_model_path),
+                'min_val_loss': load_model(best_model_min_val_loss_path),
+                'max_val_acc': load_model(best_model_max_val_accuracy_path)
+            })
+
+            for song_index in validation_file_index:
+                for model_name in ['last', 'min_val_loss', 'max_val_acc']:
                     ref_file_path = f'{data_directory}/{song_index+1}/ground_truth.txt'
-                    est_file = f'{data_directory}/{song_index+1}/est_file.txt'
+                    est_file = f'{data_directory}/{song_index+1}/est_file_{model_name}.txt'
                     score_not_repaired_tmp = get_sevenths_score(ref_file_path, est_file)
                     score_repaired_0_tmp = get_sevenths_score(ref_file_path, est_file, True)
                     score_repaired_1_tmp = get_sevenths_score(ref_file_path, est_file, True, 1)
-                    score_not_repaired += score_not_repaired_tmp
-                    score_repaired_0 += score_repaired_0_tmp
-                    score_repaired_1 += score_repaired_1_tmp
-                    print(f"\nSong {song_index+1:3d} validation score by '{model_name}' model: {score_not_repaired_tmp} (not repaired)")
-                    print(f"Song {song_index+1:3d} validation score by '{model_name}' model: {score_repaired_0_tmp} (repaired 0)")
-                    print(f"Song {song_index+1:3d} validation score by '{model_name}' model: {score_repaired_1_tmp} (repaired 1)")
-                score_not_repaired /= len(validation_file_index)
-                score_repaired_0 /= len(validation_file_index)
-                score_repaired_1 /= len(validation_file_index)
-                model_scores[model_name] = [score_not_repaired, score_repaired_0, score_repaired_1]
-                if score_not_repaired > best_score_not_repaired: best_score_not_repaired = score_not_repaired
-                print(f"\nAverage validation score by '{model_name}' model: {score_not_repaired} (not repaired)")
-                print(f"Average validation score by '{model_name}' model: {score_repaired_0} (repaired 0)")
-                print(f"Average validation score by '{model_name}' model: {score_repaired_1} (repaired 1)")
+                    score_not_repaired[model_name] += score_not_repaired_tmp
+                    score_repaired_0[model_name] += score_repaired_0_tmp
+                    score_repaired_1[model_name] += score_repaired_1_tmp
+
+            for model_name in ['last', 'min_val_loss', 'max_val_acc']:
+                score_not_repaired[model_name] /= len(validation_file_index)
+                score_repaired_0[model_name]   /= len(validation_file_index)
+                score_repaired_1[model_name]   /= len(validation_file_index)
+                model_scores[model_name] = [score_not_repaired[model_name], score_repaired_0[model_name], score_repaired_1[model_name]]
+                if score_not_repaired[model_name] > best_score_not_repaired: best_score_not_repaired = score_not_repaired[model_name]
+                print(f"\nAverage validation score by '{model_name}' model: {score_not_repaired[model_name]} (not repaired)")
+                print(f"Average validation score by '{model_name}' model: {score_repaired_0[model_name]} (repaired 0)")
+                print(f"Average validation score by '{model_name}' model: {score_repaired_1[model_name]} (repaired 1)")
             rename_save_directory = f'{rename_save_directory}-{best_score_not_repaired * 100:.5f}'
 
         record_details(train_file_index, validation_file_index, cost_time, model_scores)

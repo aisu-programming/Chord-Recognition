@@ -14,12 +14,12 @@ FRAME_LENGTH = 512
 
 
 ''' Global variables '''
-data_divide_amount = 10 # For original data, set as 1
+data_divide_amount = 1 # For original data, set as 1
 
-debug_mode = False
-if debug_mode:
-    file_directory = 'CE200_sample'
-    file_amount = 20
+formal_mode = True
+if formal_mode:
+    file_directory = 'CE500_test'
+    file_amount = 300
 else:
     file_directory = 'CE200'
     file_amount = 200
@@ -91,8 +91,8 @@ def match_data_and_write_into_csv():
     columns = [
         cqt+'C', cqt+'C#', cqt+'D', cqt+'D#', cqt+'E', cqt+'F', cqt+'F#', cqt+'G', cqt+'G#', cqt+'A', cqt+'A#', cqt+'B',
         cen+'C', cen+'C#', cen+'D', cen+'D#', cen+'E', cen+'F', cen+'F#', cen+'G', cen+'G#', cen+'A', cen+'A#', cen+'B',
-        'label'
     ]
+    if not formal_mode: columns.append('label')
 
     toolbar_width = 100
     print(f"Combining inputs and answers in '{file_directory}'.")
@@ -104,11 +104,12 @@ def match_data_and_write_into_csv():
     for song_index in range(file_amount):
 
         input_data = read_input_data(song_index, data_divide_amount)
-        answer_data = process_answer_data(song_index, input_data, data_divide_amount)
+        if not formal_mode: answer_data = process_answer_data(song_index, input_data, data_divide_amount)
 
         combined_data = [ list(data) for data in input_data ]
-        for i in range(len(combined_data)):
-            combined_data[i].append(answer_data[i])
+        if not formal_mode:
+            for i in range(len(combined_data)):
+                combined_data[i].append(answer_data[i])
 
         combined_data = np.array(combined_data)
         combined_data = pd.DataFrame(combined_data, columns=columns)
@@ -118,10 +119,7 @@ def match_data_and_write_into_csv():
             csv_file_path = f'{file_directory}/{song_index+1}/data_divide_{data_divide_amount}.csv'
         combined_data.to_csv(csv_file_path)
 
-        if debug_mode:
-            sys.stdout.write("=" * 5)
-            sys.stdout.flush()
-        elif (song_index + 1) % (file_amount / toolbar_width) == 0:
+        if (song_index + 1) % (file_amount / toolbar_width) == 0:
             sys.stdout.write("=")
             sys.stdout.flush()
         
@@ -167,8 +165,8 @@ if __name__ == "__main__":
 
     os.system('cls')
 
-    if debug_mode: print('\nDEBUG MODE\n')
-    else: print('\nNORMAL MODE\n')
+    if formal_mode: print('\nFORMAL DATA MODE\n')
+    else: print('\nTRAIN DATA MODE\n')
 
     match_data_and_write_into_csv()
 
