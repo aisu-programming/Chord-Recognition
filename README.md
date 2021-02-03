@@ -48,6 +48,6 @@
     將資料預處理的步驟改至「餵資料進 Model 前的瞬間」，大幅降低資料讀取時間與記憶體負擔。
     
 ## 結果
-得到競賽第 9 名。
-第 1 名使用的架構在[此篇論文](https://paperswithcode.com/paper/feature-learning-for-chord-recognition-the)中。
-得出心得：訓練資料的資訊含量多寡比起模型架構的優秀程度更為重要，下次遇到類似題目還是自己執行 Feature Extraction 較好。
+- 得到競賽第 9 名。
+- 第 1 名使用的架構在[此篇論文](https://paperswithcode.com/paper/feature-learning-for-chord-recognition-the)中。
+- 得出心得：訓練資料的資訊含量多寡比起模型架構的優秀程度更為重要，下次遇到類似題目還是自己執行 Feature Extraction 較好。
