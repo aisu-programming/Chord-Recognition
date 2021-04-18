@@ -1,0 +1,14 @@
+RAMDON_SEED = 1
+
+EPOCHS = 100
+BATCH_SIZE = 30000
+PATIENCE = 100
+
+data_divide_amount = 1
+frames_per_data = 5
+
+cost_time: 0:04:03.051886
+
+Score by 'last' model: 0.4205748132101693
+Score by 'min val_loss' model: 0.44348078733516455
+Score by 'max val_accuracy' model: 0.4465658916163742

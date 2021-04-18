@@ -1,0 +1,20 @@
+RAMDON_SEED = 1
+
+data_divide_amount = 5
+frames_per_data = 25
+
+test_split = 0.15
+validation_split = 0.2
+
+epochs = 500
+batch_size = 28418
+
+cost_time: 0:03:56.889506
+test_loss: 6.75213098526001
+test_accuracy: 0.39454978704452515
+original_loss (all data): 3.157575845718384
+original_accuracy (all data): 0.791150689125061
+
+Score by 'last' model: 0.8203599053518007
+Score by 'min val_loss' model: 0.4562335944385145
+Score by 'max val_accuracy' model: 0.8303837012363171

@@ -1,0 +1,9 @@
+RAMDON_SEED = 1
+
+EPOCHS = 13
+BATCH_SIZE = 200000
+
+data_divide_amount = 1
+frames_per_data = 21
+
+cost_time: 0:00:15.615282

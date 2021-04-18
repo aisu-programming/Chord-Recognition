@@ -1,0 +1,20 @@
+RAMDON_SEED = 1
+
+data_divide_amount = 10
+frames_per_data = 15
+
+test_split = 0.8
+validation_split = 0.25
+train data proportion:  1%
+test data proportion: 20%
+validation data proportion:  0%
+
+epochs = 500
+batch_size = 261
+
+cost_time: 0:05:47.212274
+test_loss: 0.005127142649143934
+test_accuracy: 0.9978668093681335
+original_loss (all data): 0.0036371713504195213
+original_accuracy (all data): 0.9985701441764832
+score: 0.9984451853718108

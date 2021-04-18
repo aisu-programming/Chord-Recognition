@@ -1,15 +1,16 @@
-# 競賽資料
+# Competition data
 CE200*
 CE500*
-answer
-baseline
-*AIcup提供dataset說明.docx
-convert/convert.zip
+*.zip
 
-# 環境配置
-venv4Chord
+# Environments
+# Virtualenv for Windows
+venv4W
+# Virtualenv for Linuxs
+venv4L
 
-# 程式碼
+# Codes
 *.pyc
-model
-test.*
+
+# Training
+*.h5

@@ -1,0 +1,11 @@
+RAMDON_SEED = 1
+
+data_divide_amount = 5
+frames_per_data = 15
+data_split_percentage = 0.6
+epochs = 2000
+batch_size = 2602
+
+cost_time = 0:04:40.657797
+accuracy = 0.9960219264030457
+score = 0.9972538201026862

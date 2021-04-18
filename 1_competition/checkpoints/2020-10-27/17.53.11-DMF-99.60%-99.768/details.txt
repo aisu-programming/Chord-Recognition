@@ -1,0 +1,9 @@
+RAMDON_SEED = 1
+
+frames_per_data = 15
+data_split_percentage = 0.6
+epochs = 1000
+batch_size = 261
+
+accuracy = 0.9960219264030457
+score = 0.9976845099767147
