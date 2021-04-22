@@ -23,28 +23,30 @@ RAMDON_SEED = 1
 EPOCHS = 200
 # 872950
 # 300000
-BATCH_PER_TRAIN = 5000
-BATCH_SIZE = BATCH_PER_TRAIN * 20
+BATCH_PER_TRAIN = 40
+BATCH_SIZE = BATCH_PER_TRAIN * 60
 PATIENCE = 20
 
 ''' Global variables'''
-debug_mode = False
+debug_mode = True
 if debug_mode:
-    data_directory = 'CE200_sample'
-    file_amount = 20
+    data_directory = '../customized_data/CE10'
+    file_amount = 10
 else:
-    data_directory = 'CE200'
+    data_directory = '../original_data/CE200'
     file_amount = 200
 
 data_divide_amount = 1
-sec_per_frame = 512.0 / 22050.0 / data_divide_amount
+# sec_per_frame = 512 / 22050 / data_divide_amount
+sec_per_frame = 4480 / 44800 / data_divide_amount
 
-frames_per_data = data_divide_amount * 401
+frames_per_data = data_divide_amount * 15
+# frames_per_data = data_divide_amount * 401
 # frames_per_data = data_divide_amount * 501
 one_side_frames = int((frames_per_data - 1) / 2)
 
 only_cqt = True
-if only_cqt: input_amount = 12
+if only_cqt: input_amount = 192
 else: input_amount = 24
 
 mapping_dictionary = my_mapping_dict
@@ -60,10 +62,10 @@ save_directory = f'model/{now_date}/{now_time}'
 ''' Codes '''
 def build_model():
     model = Sequential()
-    model.add(Dense(4812, input_shape=(4812, ), activation='relu'))
-    model.add(Dense(4812, activation='relu'))
-    model.add(Dense(4812, activation='relu'))
-    model.add(Dense(4812, activation='relu'))
+    model.add(Dense(2880, input_shape=(2880, ), activation='relu'))
+    model.add(Dense(2880, activation='relu'))
+    model.add(Dense(2880, activation='relu'))
+    model.add(Dense(2880, activation='relu'))
 
     # model.add(Dense(6012, input_shape=(6012, ), activation='relu'))
     # model.add(Dense(6012, activation='relu'))
@@ -102,24 +104,24 @@ def readAndSplitData(train_file_index):
                 X['validation'].append(filling_row)
                 Y['validation'].append(0)
 
-        if data_divide_amount == 1: read_csv_file_path = f'{data_directory}/{song_index+1}/data.csv'
+        if data_divide_amount == 1: read_csv_file_path = f'{data_directory}/{song_index+1}/data_44800_4480.csv'
         else: read_csv_file_path = f'{data_directory}/{song_index+1}/data_divide_{data_divide_amount}.csv'
         
         data = pd.read_csv(read_csv_file_path, index_col=0)
         data = data.values
 
         for row in data:
-            label = row[24]
+            label = row[-1]
             for chord in ['maj6', 'maj9', 'maj11', 'maj13', 'min6', 'min9', 'min11', 'min13']:
                 if chord in label:
                     label = 1
                     break
-            if label == row[24]:
+            if label == row[-1]:
                 for chord in mapping_dictionary.keys():
                     if chord in label:
                         label = int(mapping_dictionary[chord])
                         break
-            if label == row[24]: label = 1
+            if label == row[-1]: label = 1
 
             if song_index in train_file_index:
                 X['train'].append(row[:input_amount])

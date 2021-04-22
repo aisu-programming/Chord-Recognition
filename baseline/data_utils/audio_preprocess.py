@@ -25,13 +25,13 @@ def cqt_preprocess(file_path):
     return S_db
 
 def preprocess(dir_path, target_path, file_name, semaphore):
-        file_path = os.path.join(dir_path, file_name)
+    file_path = os.path.join(dir_path, file_name)
 
-        semaphore.acquire()
-        S_db = cqt_preprocess(file_path)
-        semaphore.release()
+    semaphore.acquire()
+    S_db = cqt_preprocess(file_path)
+    semaphore.release()
 
-        # Save to .npy file
-        npy_path = os.path.join(target_path, os.path.splitext(file_name)[0] + ".npy")
-        np.save(npy_path, S_db)
-        print(file_name + " done.")
+    # Save to .npy file
+    npy_path = os.path.join(target_path, os.path.splitext(file_name)[0] + ".npy")
+    np.save(npy_path, S_db)
+    print(file_name + " done.")
