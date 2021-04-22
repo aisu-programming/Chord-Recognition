@@ -123,17 +123,12 @@ class MyModel(tf.keras.Model):
             for _ in range(N)
         ]
 
-        self.TestDenses = [
-            tf.keras.layers.Dense(200),
-            tf.keras.layers.Dense(160),
-            tf.keras.layers.Dense(120),
-            tf.keras.layers.Dense(80),
-            tf.keras.layers.Dense(40),
-            tf.keras.layers.Dense(20),
-            tf.keras.layers.LayerNormalization(epsilon=1e-6),
-        ]
+        # self.TestDenses = [
+        #     tf.keras.layers.Dense(250),
+        #     tf.keras.layers.Dense(300),
+        #     tf.keras.layers.LayerNormalization(epsilon=1e-6),
+        # ]
 
-        self.Dropout = tf.keras.layers.Dropout(dropout)
         self.RootSoftmax = tf.keras.layers.Dense(13, activation=tf.keras.activations.softmax)
         self.QualitySoftmax = tf.keras.layers.Dense(6, activation=tf.keras.activations.softmax)
 
@@ -151,12 +146,9 @@ class MyModel(tf.keras.Model):
         for BidirectionalMaskedSelfAttention in self.BidirectionalMaskedSelfAttentions:
             x = BidirectionalMaskedSelfAttention(x, training=training)
 
-        for TestDense in self.TestDenses:
-            x = TestDense(x)
+        # for TestDense in self.TestDenses:
+        #     x = TestDense(x, training=training)
 
-        # tf.print('\nx[0, 0]: ', x[0, 0], '\nx[0, 1]: ', x[0, 1], summarize=-1)
-        
-        x = self.Dropout(x, training=training)
         root = self.RootSoftmax(x)
         quality = self.QualitySoftmax(x)
         x = tf.concat([root, quality], axis=-1)
