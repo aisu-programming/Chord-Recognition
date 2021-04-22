@@ -4,12 +4,9 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
-import mir_eval
 
-from chord_mapping import mapping_seventh
-from convert import find_components, find_quality, find_shorthand
-from my_mapping import mapping_quality2id
-from btc import MyModel
+from process_chord import process_chords_v1, process_chords_v2
+from btc19 import MyModel
 from make_dir_and_plot import make_dir, plot_history, plot_loss_lr
 
 
@@ -18,21 +15,21 @@ from make_dir_and_plot import make_dir, plot_history, plot_loss_lr
 SAMPLE_RATE = 44800
 VALID_RATIO = 0.2
 # Model
-BATCH_LEN = 19
+BATCH_LEN = 25
 DIM = 192
-N = 2
-NUM_HEADS = 12
-DROPOUT = 0.15
+N = 1
+NUM_HEADS = 4
+DROPOUT = 0.2
 CONV_NUM = 2
 # Train
 RANDOM_SEED = 1
 np.random.seed(RANDOM_SEED)
 TRAIN_BATCHES_LEN = 800
 VALID_BATCHES_LEN = 200
-# INITIAL_LEARNING_RATE = 5.6e-3
-# DECAY_RATE = 0.999
-INITIAL_LEARNING_RATE = 1e-3
-DECAY_RATE = 1.02
+INITIAL_LEARNING_RATE = 6e-3
+DECAY_RATE = 0.93
+# INITIAL_LEARNING_RATE = 1e-3
+# DECAY_RATE = 1.02
 EPOCH = 300
 BATCH_SIZE = 256
 CKPT_DIR = make_dir()
@@ -90,9 +87,9 @@ def valid_step(x, y_real):
 
 
 def save_details():
-    with open(f"{CKPT_DIR}/details.txt") as f:
-        f.write(f"# Program name")
-        f.write("seq2seq.py\n\n")
+    with open(f"{CKPT_DIR}/details.txt", mode='w') as f:
+        f.write(f"# Program name\n")
+        f.write(f"{__file__}.py\n\n")
 
         f.write(f"# Data\n")
         f.write(f"SAMPLE_RATE: {SAMPLE_RATE}\n")
@@ -116,19 +113,6 @@ def save_details():
         f.write(f"BATCH_SIZE: {BATCH_SIZE}\n")
 
 
-def process_chords(chords):
-    qualities = [ mir_eval.chord.split(chord)[1] for chord in chords ]
-    for i, quality in enumerate(qualities):
-        if quality in mapping_quality2id.keys(): qualities[i] = mapping_quality2id[quality]
-        else: qualities[i] = mapping_quality2id['']
-    quality_ids = np.eye(len(mapping_quality2id))[qualities].tolist()
-    root_ids, quality_bitmaps, _ = mir_eval.chord.encode_many(chords)
-    root_ids = [ id+1 for id in root_ids ]
-    root_ids = np.eye(13)[root_ids].tolist()
-    # return np.concatenate([root_ids, quality_bitmaps], axis=-1).tolist()
-    return np.concatenate([root_ids, quality_ids], axis=-1).tolist()
-
-
 def read_data(path, song_amount, hop_len):
     x_dataset, y_dataset = [], []
     for i in tqdm(range(song_amount), desc="Reading data", total=song_amount, ascii=True):
@@ -137,7 +121,7 @@ def read_data(path, song_amount, hop_len):
         cqts   = data[:, :-1].tolist()
         chords = [ chord.strip() for chord in data[:, -1].tolist() ]
         x_dataset.append(cqts)
-        y_dataset.append(process_chords(chords))
+        y_dataset.append(process_chords_v2(chords))
     return x_dataset, y_dataset
 
 
