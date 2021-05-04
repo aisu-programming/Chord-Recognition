@@ -6,7 +6,7 @@ from my_mapping import mapping_quality2id, mapping_chord2id
 
 
 ''' Functions '''
-def process_chords_v1(chords):
+def process_chords_13_6(chords):
     qualities = [ mir_eval.chord.split(chord)[1] for chord in chords ]
     for i, quality in enumerate(qualities):
         if quality in mapping_quality2id.keys(): qualities[i] = mapping_quality2id[quality]
@@ -18,7 +18,7 @@ def process_chords_v1(chords):
     return np.concatenate([root_ids, quality_ids], axis=-1).tolist()
 
 
-def process_chords_v2(chords):
+def process_chords_63(chords):
     root_qualities = [
         (mir_eval.chord.split(chord)[0], mir_eval.chord.split(chord)[1])
         for chord in chords

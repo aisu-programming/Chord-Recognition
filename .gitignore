@@ -3,14 +3,13 @@ official_data
 customized_data
 *.zip
 
-# Environments
-# Virtualenv for Windows
+# Environments: Virtualenv for Windows
 venv4W
-# Virtualenv for Linuxs
+# Environments: Virtualenv for Linux
 venv4L
 
 # Codes
 *.pyc
 
-# Training
+# Models
 *.h5

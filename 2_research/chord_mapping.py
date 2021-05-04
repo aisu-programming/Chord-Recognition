@@ -29,7 +29,7 @@ mapping_majmin = {
 }
 
 mapping_seventh = {
-    ''    : '', 
+    ''    : '',
     'min' : 'min', 
     '7'   : '7', 
     'maj7': 'maj7',
@@ -42,5 +42,4 @@ mapping_seventh = {
     # Add by me
     'maj'   : '',
     'sus2'  : '',
-    'maj(9)': '',
 }

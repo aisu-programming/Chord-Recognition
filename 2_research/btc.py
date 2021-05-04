@@ -50,12 +50,13 @@ class MyMultiHeadAttention(tf.keras.layers.Layer):
 
 
 class PositionwiseFeedForward(tf.keras.layers.Layer):
-    def __init__(self, dim, conv_num, dropout):
+    def __init__(self, dim, conv_num, conv_dim, dropout):
         super(PositionwiseFeedForward, self).__init__()
         self.Convs = [ 
-            tf.keras.layers.Conv1D(dim, 3, padding='same')
-            for _ in range(conv_num)
+            tf.keras.layers.Conv1D(conv_dim, 3, padding='same')
+            for _ in range(conv_num-1)
         ]
+        self.Convs.append(tf.keras.layers.Conv1D(dim, 3, padding='same'))
         self.ReLU = tf.keras.layers.ReLU()
         self.Dropout = tf.keras.layers.Dropout(dropout)
 
@@ -68,7 +69,7 @@ class PositionwiseFeedForward(tf.keras.layers.Layer):
 
 
 class MaskedSelfAttention(tf.keras.layers.Layer):
-    def __init__(self, batch_len, num_heads, dim, dropout, conv_num):
+    def __init__(self, batch_len, num_heads, dim, dropout, conv_num, conv_dim):
         super(MaskedSelfAttention, self).__init__()
         self.batch_len = batch_len
         self.LayerNorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)  # 0.001)
@@ -76,7 +77,7 @@ class MaskedSelfAttention(tf.keras.layers.Layer):
         self.MHA = MyMultiHeadAttention(num_heads, dim)
         self.Dropout = tf.keras.layers.Dropout(dropout)
         self.LayerNorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)  # 0.001)
-        self.PFF = PositionwiseFeedForward(dim, conv_num, dropout)
+        self.PFF = PositionwiseFeedForward(dim, conv_num, conv_dim, dropout)
 
     @property
     def mask(self):
@@ -92,10 +93,10 @@ class MaskedSelfAttention(tf.keras.layers.Layer):
 
 
 class BidirectionalMaskedSelfAttention(tf.keras.layers.Layer):
-    def __init__(self, batch_len, num_heads, dim, dropout, conv_num):
+    def __init__(self, batch_len, num_heads, dim, dropout, conv_num, conv_dim):
         super(BidirectionalMaskedSelfAttention, self).__init__()
-        self.forwardMaskedSelfAttention  = MaskedSelfAttention(batch_len, num_heads, dim, dropout, conv_num)
-        self.backwardMaskedSelfAttention = MaskedSelfAttention(batch_len, num_heads, dim, dropout, conv_num)
+        self.forwardMaskedSelfAttention  = MaskedSelfAttention(batch_len, num_heads, dim, dropout, conv_num, conv_dim)
+        self.backwardMaskedSelfAttention = MaskedSelfAttention(batch_len, num_heads, dim, dropout, conv_num, conv_dim)
         self.Dropout = tf.keras.layers.Dropout(dropout)
         self.Linear = tf.keras.layers.Dense(dim)
         self.LayerNorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)  # 0.001)
@@ -114,15 +115,22 @@ class BidirectionalMaskedSelfAttention(tf.keras.layers.Layer):
 
 
 class MyModel(tf.keras.Model):
-    def __init__(self, batch_len, dim, N, num_heads, dropout, conv_num):
+    def __init__(self, output_mode, batch_len, dim, N, num_heads, dropout, conv_num, conv_dim):
         super(MyModel, self).__init__()
+        self.output_mode = output_mode
         self.batch_len = batch_len
         self.dim = dim
         self.BidirectionalMaskedSelfAttentions = [
-            BidirectionalMaskedSelfAttention(batch_len, num_heads, dim, dropout, conv_num)
+            BidirectionalMaskedSelfAttention(batch_len, num_heads, dim, dropout, conv_num, conv_dim)
             for _ in range(N)
         ]
-        self.ChordSoftmax = tf.keras.layers.Dense(63, activation=tf.keras.activations.softmax)
+        if output_mode == '63':
+            self.ChordSoftmax = tf.keras.layers.Dense(63, activation=tf.keras.activations.softmax)
+        elif output_mode == '13+6':
+            self.RootSoftmax = tf.keras.layers.Dense(13, activation=tf.keras.activations.softmax)
+            self.QualitySoftmax = tf.keras.layers.Dense(6, activation=tf.keras.activations.softmax)
+        else:
+            raise Exception
 
     @property
     def PositionalEncoding(self):
@@ -137,5 +145,10 @@ class MyModel(tf.keras.Model):
         x += self.PositionalEncoding
         for BidirectionalMaskedSelfAttention in self.BidirectionalMaskedSelfAttentions:
             x = BidirectionalMaskedSelfAttention(x, training=training)
-        x = self.ChordSoftmax(x)
+        if self.output_mode == '63':
+            x = self.ChordSoftmax(x)
+        elif self.output_mode == '13+6':
+            root = self.RootSoftmax(x)
+            quality = self.QualitySoftmax(x)
+            x = tf.concat([root, quality], axis=-1)
         return x

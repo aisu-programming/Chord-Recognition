@@ -12,11 +12,17 @@ def make_dir():
 
 def plot_history(ckpt_dir, history):
     
-    train_loss = history['train_loss'][1:]
-    train_acc = history['train_acc'][1:]
-    valid_loss = history['valid_loss'][1:]
-    valid_acc = history['valid_acc'][1:]
-    epochs_length = range(2, 2+len(train_loss))
+    # train_loss = history['train_loss'][1:]
+    # train_acc = history['train_acc'][1:]
+    # valid_loss = history['valid_loss'][1:]
+    # valid_acc = history['valid_acc'][1:]
+    # epochs_length = range(2, 2+len(train_loss))
+    
+    train_loss = history['train_loss']
+    train_acc = history['train_acc']
+    valid_loss = history['valid_loss']
+    valid_acc = history['valid_acc']
+    epochs_length = range(1, 1+len(train_loss))
 
     fig, axs = plt.subplots(2)
     fig.set_size_inches(12, 16) # 3:4

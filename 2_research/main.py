@@ -1,135 +1,115 @@
 ''' Libraries '''
 import os
-import pandas as pd
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
-from process_chord import process_chords_v1, process_chords_v2
-from btc19 import MyModel
+from btc import MyModel
 from make_dir_and_plot import make_dir, plot_history, plot_loss_lr
 
 
-''' Parameters '''
-# Data
+
+''' Data parameters '''
+LOAD_SONG_AMOUNT = 200
 SAMPLE_RATE = 44800
+HOP_LENGTH = 4480
 VALID_RATIO = 0.2
-# Model
-BATCH_LEN = 25
+
+''' Model parameters '''
+# MODEL_MODE = 'seq2seq'
+MODEL_MODE = 'seq2one'
+OUTPUT_MODE = '63'
+# OUTPUT_MODE = '13+6'
+BATCH_LEN = 101
 DIM = 192
-N = 1
-NUM_HEADS = 4
+N = 12
+NUM_HEADS = 16
 DROPOUT = 0.2
 CONV_NUM = 2
-# Train
+CONV_DIM = 512
+
+''' Preprocess parameters '''
 RANDOM_SEED = 1
 np.random.seed(RANDOM_SEED)
-TRAIN_BATCHES_LEN = 800
-VALID_BATCHES_LEN = 200
-INITIAL_LEARNING_RATE = 6e-3
-DECAY_RATE = 0.93
-# INITIAL_LEARNING_RATE = 1e-3
-# DECAY_RATE = 1.02
+DATASET_HOP = 15
+TRAIN_BATCHES_LEN = 200
+VALID_BATCHES_LEN = 100
+
+''' Training parameters '''
+INITIAL_LEARNING_RATE = 5e-2
+DECAY_RATE = 0.987
 EPOCH = 300
-BATCH_SIZE = 256
+BATCH_SIZE = 64
 CKPT_DIR = make_dir()
 
 
-''' Functions '''
-def loss_function(y_real, y_pred):
-    y_real_roots, y_real_qualities = y_real[:, :, :13], y_real[:, :, 13:]
-    y_pred_roots, y_pred_qualities = y_pred[:, :, :13], y_pred[:, :, 13:]
-    root_losses = root_loss_object(y_real_roots, y_pred_roots)
-    quality_losses = quality_loss_object(y_real_qualities, y_pred_qualities)
-    return tf.reduce_sum(root_losses*quality_losses)
-    # return tf.reduce_sum(root_losses*quality_losses)/len(root_losses*quality_losses)
+
+''' Model library '''
+if   MODEL_MODE == 'seq2seq' and OUTPUT_MODE == '63'  : from seq2seq_63 import loss_function, accuracy_function, read_data, show_pred_and_truth
+elif MODEL_MODE == 'seq2seq' and OUTPUT_MODE == '13+6': from seq2seq_16_3 import loss_function, accuracy_function, read_data, show_pred_and_truth
+elif MODEL_MODE == 'seq2one' and OUTPUT_MODE == '63'  : from seq2one_63 import loss_function, accuracy_function, read_data, show_pred_and_truth
+elif MODEL_MODE == 'seq2one' and OUTPUT_MODE == '13+6': from seq2one_16_3 import loss_function, accuracy_function, read_data, show_pred_and_truth
 
 
-def accuracy_function(y_real, y_pred):
-    y_real_root_ids, y_real_quality_ids = tf.argmax(y_real[:, :, :13], axis=-1), tf.argmax(y_real[:, :, 13:], axis=-1)
-    y_pred_root_ids, y_pred_quality_ids = tf.argmax(y_pred[:, :, :13], axis=-1), tf.argmax(y_pred[:, :, 13:], axis=-1)
-    root_accs = tf.equal(y_real_root_ids, y_pred_root_ids)
-    quality_accs = tf.equal(y_real_quality_ids, y_pred_quality_ids)
-    accs = tf.cast(tf.logical_and(root_accs, quality_accs), dtype=tf.float32)
 
-    # tf.print("")
-    # tf.print("y_real_root_ids[0]   : ", y_real_root_ids[0], summarize=-1)
-    # tf.print("y_pred_root_ids[0]   : ", y_pred_root_ids[0], summarize=-1)
-    # tf.print("root_accs[0]         : ", root_accs[0], summarize=-1)
-    # tf.print("")
-    # tf.print("y_real_quality_ids[0]: ", y_real_quality_ids[0], summarize=-1)
-    # tf.print("y_pred_quality_ids[0]: ", y_pred_quality_ids[0], summarize=-1)
-    # tf.print("quality_accs[0]      : ", quality_accs[0], summarize=-1)
-    # tf.print("")
-    # tf.print("accs[0]              : ", accs[0], summarize=-1)
-    # tf.print("")
+''' Function '''
+def save_details():
+    with open(f"{CKPT_DIR}/details.txt", mode='w') as f:
+        f.write(f"# Data parameters\n")
+        f.write(f"LOAD_SONG_AMOUNT: {LOAD_SONG_AMOUNT}\n")
+        f.write(f"SAMPLE_RATE     : {SAMPLE_RATE}\n")
+        f.write(f"HOP_LENGTH      : {HOP_LENGTH}\n")
+        f.write(f"VALID_RATIO     : {VALID_RATIO}\n\n")
 
-    return tf.reduce_sum(accs)/len(accs)
+        f.write(f"# Model parameters\n")
+        f.write(f"MODEL_MODE : {MODEL_MODE}\n")
+        f.write(f"OUTPUT_MODE: {OUTPUT_MODE}\n")
+        f.write(f"BATCH_LEN  : {BATCH_LEN}\n")
+        f.write(f"DIM        : {DIM}\n")
+        f.write(f"N          : {N}\n")
+        f.write(f"NUM_HEADS  : {NUM_HEADS}\n")
+        f.write(f"DROPOUT    : {DROPOUT}\n")
+        f.write(f"CONV_NUM   : {CONV_NUM}\n")
+        f.write(f"CONV_DIM   : {CONV_DIM}\n\n")
+
+        f.write(f"# Training parameters\n")
+        f.write(f"RANDOM_SEED          : {RANDOM_SEED}\n")
+        f.write(f"DATASET_HOP          : {DATASET_HOP}\n")
+        f.write(f"TRAIN_BATCHES_LEN    : {TRAIN_BATCHES_LEN}\n")
+        f.write(f"VALID_BATCHES_LEN    : {VALID_BATCHES_LEN}\n")
+        f.write(f"INITIAL_LEARNING_RATE: {INITIAL_LEARNING_RATE}\n")
+        f.write(f"DECAY_RATE           : {DECAY_RATE}\n")
+        f.write(f"EPOCH                : {EPOCH}\n")
+        f.write(f"BATCH_SIZE           : {BATCH_SIZE}\n")
 
 
 @tf.function
 def train_step(x, y_real):
     with tf.GradientTape() as tape:
         y_pred = model(x, training=True)
-        loss = loss_function(y_real, y_pred)
+        loss = loss_function(y_real, y_pred, loss_objects, BATCH_LEN//2)
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     train_loss(loss)
-    train_acc(accuracy_function(y_real, y_pred))
+    train_acc(accuracy_function(y_real, y_pred, BATCH_LEN//2))
     return y_pred
 
 
 def valid_step(x, y_real):
     y_pred = model(x)
-    valid_loss(loss_function(y_real, y_pred))
-    valid_acc(accuracy_function(y_real, y_pred))
+    valid_loss(loss_function(y_real, y_pred, loss_objects, BATCH_LEN//2))
+    valid_acc(accuracy_function(y_real, y_pred, BATCH_LEN//2))
     return y_pred
-
-
-def save_details():
-    with open(f"{CKPT_DIR}/details.txt", mode='w') as f:
-        f.write(f"# Program name\n")
-        f.write(f"{__file__}.py\n\n")
-
-        f.write(f"# Data\n")
-        f.write(f"SAMPLE_RATE: {SAMPLE_RATE}\n")
-        f.write(f"VALID_RATIO: {VALID_RATIO}\n\n")
-
-        f.write(f"# Model\n")
-        f.write(f"BATCH_LEN: {BATCH_LEN}\n")
-        f.write(f"DIM: {DIM}\n")
-        f.write(f"N: {N}\n")
-        f.write(f"NUM_HEADS: {NUM_HEADS}\n")
-        f.write(f"DROPOUT: {DROPOUT}\n")
-        f.write(f"CONV_NUM: {CONV_NUM}\n\n")
-
-        f.write(f"# Train\n")
-        f.write(f"RANDOM_SEED: {RANDOM_SEED}\n")
-        f.write(f"TRAIN_BATCHES_LEN: {TRAIN_BATCHES_LEN}\n")
-        f.write(f"VALID_BATCHES_LEN: {VALID_BATCHES_LEN}\n")
-        f.write(f"INITIAL_LEARNING_RATE: {INITIAL_LEARNING_RATE}\n")
-        f.write(f"DECAY_RATE: {DECAY_RATE}\n")
-        f.write(f"EPOCH: {EPOCH}\n")
-        f.write(f"BATCH_SIZE: {BATCH_SIZE}\n")
-
-
-def read_data(path, song_amount, hop_len):
-    x_dataset, y_dataset = [], []
-    for i in tqdm(range(song_amount), desc="Reading data", total=song_amount, ascii=True):
-        try: data = pd.read_csv(f"{path}/{i+1}/data_{SAMPLE_RATE}_{hop_len}.csv", index_col=0).values
-        except: continue
-        cqts   = data[:, :-1].tolist()
-        chords = [ chord.strip() for chord in data[:, -1].tolist() ]
-        x_dataset.append(cqts)
-        y_dataset.append(process_chords_v2(chords))
-    return x_dataset, y_dataset
 
 
 def main():
 
     save_details()
 
-    x_dataset, y_dataset = read_data(r"../customized_data/CE200", 50, 4480)
+    x_dataset, y_dataset = read_data(
+        r"../customized_data/CE200",
+        LOAD_SONG_AMOUNT, SAMPLE_RATE, HOP_LENGTH
+    )
     x_dataset_train = x_dataset[:int(len(x_dataset)*(1-VALID_RATIO))]
     y_dataset_train = y_dataset[:int(len(y_dataset)*(1-VALID_RATIO))]
     x_dataset_valid = x_dataset[int(len(x_dataset)*(1-VALID_RATIO)):]
@@ -142,7 +122,7 @@ def main():
         total=len(x_dataset_train), ascii=True
     )
     for i in bar:  # song num
-        for j in range(len(x_dataset_train[i])-BATCH_LEN+1):
+        for j in range(0, len(x_dataset_train[i])-BATCH_LEN+1, DATASET_HOP):
             x_train.append(x_dataset_train[i][j:j+BATCH_LEN])
             y_train.append(y_dataset_train[i][j:j+BATCH_LEN])
     x_train = np.array(x_train)
@@ -152,15 +132,17 @@ def main():
         total=len(x_dataset_valid), ascii=True
     )
     for i in bar:
-        for j in range(len(x_dataset_valid[i])-BATCH_LEN+1):
+        for j in range(0, len(x_dataset_valid[i])-BATCH_LEN+1, DATASET_HOP):
             x_valid.append(x_dataset_valid[i][j:j+BATCH_LEN])
             y_valid.append(y_dataset_valid[i][j:j+BATCH_LEN])
     x_valid = np.array(x_valid)
     y_valid = np.array(y_valid)
 
-    global root_loss_object, quality_loss_object, optimizer
-    root_loss_object = tf.keras.losses.CategoricalCrossentropy(reduction='none')
-    quality_loss_object = tf.keras.losses.CategoricalCrossentropy(reduction='none')
+    global loss_objects, optimizer
+    loss_objects = [
+        tf.keras.losses.CategoricalCrossentropy(reduction='none'),
+        tf.keras.losses.CategoricalCrossentropy(reduction='none'),
+    ]
     optimizer = tf.keras.optimizers.Adam(
         tf.keras.optimizers.schedules.ExponentialDecay(  # lr_schedule
             initial_learning_rate=INITIAL_LEARNING_RATE,
@@ -175,21 +157,7 @@ def main():
     valid_acc = tf.keras.metrics.Mean()
 
     global model
-    model = MyModel(BATCH_LEN, DIM, N, NUM_HEADS, DROPOUT, CONV_NUM)
-    # model.compile(
-    #     optimizer='adam', loss='mse', metrics=['accuracy'],
-    #     # run_eagerly=True,
-    # )
-    # model.fit(
-    #     x=x_train, y=y_train,
-    #     batch_size=BATCH_SIZE,
-    #     epochs=EPOCH,
-    #     verbose=1,
-    #     callbacks=None,
-    #     validation_data=(x_valid, y_valid),
-    #     shuffle=True,
-    # )
-
+    model = MyModel(OUTPUT_MODE, BATCH_LEN, DIM, N, NUM_HEADS, DROPOUT, CONV_NUM, CONV_DIM)
 
     avg_train_losses = []
     avg_train_accs = []
@@ -225,11 +193,9 @@ def main():
         valid_loss.reset_states()
         valid_acc.reset_states()
 
-
-        # Test
-        testing_losses = []
-        lrs = []
-
+        # # Test
+        # testing_losses = []
+        # lrs = []
 
         print('')
         pbar = tqdm(enumerate(train_batches), desc=f"Epoch {epoch+1:3d}", total=len(train_batches), ascii=True)
@@ -260,23 +226,17 @@ def main():
         avg_valid_losses.append(np.mean(valid_losses))
         avg_valid_accs.append(np.mean(valid_accs))
 
-        np.set_printoptions(precision=6, linewidth=272, suppress=True)
-        print("\nSample prediction: Shape =", y_pred[0].numpy().shape)
-        print(y_pred[0].numpy())
-        print("\nProcessed sample prediction: Shape =", y_pred[0].numpy().shape)
-        print(np.concatenate([np.concatenate([np.eye(13)[np.argmax(y_pred[0, :, :13].numpy(), axis=-1)], np.eye(6)[np.argmax(y_pred[0, :, 13:].numpy(), axis=-1)]], axis=-1), ((np.arange(19)+1)/1000000)[np.newaxis, :]], axis=-0))
-        print("\nGround truth: Shape =", y_real[0].shape)
-        print(np.concatenate([y_real[0], ((np.arange(19)+1)/1000000)[np.newaxis, :]], axis=-0))
-        print('\n')
+        show_pred_and_truth(y_real, y_pred, BATCH_LEN//2)
 
         plot_history(CKPT_DIR, {
             'train_loss': avg_train_losses,
-            'train_acc': avg_train_accs,
+            'train_acc' : avg_train_accs,
             'valid_loss': avg_valid_losses,
-            'valid_acc': avg_valid_accs,
+            'valid_acc' : avg_valid_accs,
         })
 
     return
+
 
 
 ''' Exection '''
