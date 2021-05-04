@@ -32,8 +32,8 @@ CONV_DIM = 512
 RANDOM_SEED = 1
 np.random.seed(RANDOM_SEED)
 DATASET_HOP = 15
-TRAIN_BATCHES_LEN = 200
-VALID_BATCHES_LEN = 100
+TRAIN_BATCH_LEN = 200
+VALID_BATCH_LEN = 100
 
 ''' Training parameters '''
 INITIAL_LEARNING_RATE = 5e-2
@@ -53,6 +53,7 @@ elif MODEL_MODE == 'seq2one' and OUTPUT_MODE == '13+6': from seq2one_16_3 import
 
 
 ''' Function '''
+# Save the parameters into "details.txt"
 def save_details():
     with open(f"{CKPT_DIR}/details.txt", mode='w') as f:
         f.write(f"# Data parameters\n")
@@ -75,14 +76,15 @@ def save_details():
         f.write(f"# Training parameters\n")
         f.write(f"RANDOM_SEED          : {RANDOM_SEED}\n")
         f.write(f"DATASET_HOP          : {DATASET_HOP}\n")
-        f.write(f"TRAIN_BATCHES_LEN    : {TRAIN_BATCHES_LEN}\n")
-        f.write(f"VALID_BATCHES_LEN    : {VALID_BATCHES_LEN}\n")
+        f.write(f"TRAIN_BATCH_LEN      : {TRAIN_BATCH_LEN}\n")
+        f.write(f"VALID_BATCH_LEN      : {VALID_BATCH_LEN}\n")
         f.write(f"INITIAL_LEARNING_RATE: {INITIAL_LEARNING_RATE}\n")
         f.write(f"DECAY_RATE           : {DECAY_RATE}\n")
         f.write(f"EPOCH                : {EPOCH}\n")
         f.write(f"BATCH_SIZE           : {BATCH_SIZE}\n")
 
 
+# Customized training step
 @tf.function
 def train_step(x, y_real):
     with tf.GradientTape() as tape:
@@ -95,6 +97,7 @@ def train_step(x, y_real):
     return y_pred
 
 
+# Customized validating step
 def valid_step(x, y_real):
     y_pred = model(x)
     valid_loss(loss_function(y_real, y_pred, loss_objects, BATCH_LEN//2))
@@ -102,43 +105,60 @@ def valid_step(x, y_real):
     return y_pred
 
 
+# Main process
 def main():
 
+
+    # Save parameters first for records
     save_details()
 
+
+    # Load dataset
     x_dataset, y_dataset = read_data(
         r"../customized_data/CE200",
         LOAD_SONG_AMOUNT, SAMPLE_RATE, HOP_LENGTH
     )
+    # Split loaded datasets into training and validating purpose
     x_dataset_train = x_dataset[:int(len(x_dataset)*(1-VALID_RATIO))]
     y_dataset_train = y_dataset[:int(len(y_dataset)*(1-VALID_RATIO))]
     x_dataset_valid = x_dataset[int(len(x_dataset)*(1-VALID_RATIO)):]
     y_dataset_valid = y_dataset[int(len(y_dataset)*(1-VALID_RATIO)):]
 
+
+    # Process datasets to data with input format
     x_train, y_train = [], []
     x_valid, y_valid = [], []
-    bar = tqdm(
+
+    progress_bar = tqdm(
         range(len(x_dataset_train)), desc="Processing train data",
         total=len(x_dataset_train), ascii=True
     )
-    for i in bar:  # song num
+    # 'i' for song no.
+    for i in progress_bar:
+        # 'j' for frame no. in a song
         for j in range(0, len(x_dataset_train[i])-BATCH_LEN+1, DATASET_HOP):
             x_train.append(x_dataset_train[i][j:j+BATCH_LEN])
             y_train.append(y_dataset_train[i][j:j+BATCH_LEN])
-    x_train = np.array(x_train)
-    y_train = np.array(y_train)
-    bar = tqdm(
+
+    progress_bar = tqdm(
         range(len(x_dataset_valid)), desc="Processing valid data",
         total=len(x_dataset_valid), ascii=True
     )
-    for i in bar:
+    for i in progress_bar:
         for j in range(0, len(x_dataset_valid[i])-BATCH_LEN+1, DATASET_HOP):
             x_valid.append(x_dataset_valid[i][j:j+BATCH_LEN])
             y_valid.append(y_dataset_valid[i][j:j+BATCH_LEN])
+
+    x_train = np.array(x_train)
+    y_train = np.array(y_train)
     x_valid = np.array(x_valid)
     y_valid = np.array(y_valid)
 
-    global loss_objects, optimizer
+
+    # Global variable 'loss_objects' for both training and validating step
+    # Global variable 'optimizer', 'train_loss', and 'train_acc' for training step
+    # Global variable 'valid_loss', and 'valid_acc' for validating step
+    global loss_objects, optimizer, train_loss, train_acc, valid_loss, valid_acc
     loss_objects = [
         tf.keras.losses.CategoricalCrossentropy(reduction='none'),
         tf.keras.losses.CategoricalCrossentropy(reduction='none'),
@@ -149,40 +169,53 @@ def main():
             decay_steps=EPOCH,
             decay_rate=DECAY_RATE)
     )
-
-    global train_loss, train_acc, valid_loss, valid_acc
     train_loss = tf.keras.metrics.Mean()
     train_acc = tf.keras.metrics.Mean()
     valid_loss = tf.keras.metrics.Mean()
     valid_acc = tf.keras.metrics.Mean()
 
+
+    # Define the model
     global model
     model = MyModel(OUTPUT_MODE, BATCH_LEN, DIM, N, NUM_HEADS, DROPOUT, CONV_NUM, CONV_DIM)
 
+
+    # Average losses and accuracies per epoch for plotting figures
     avg_train_losses = []
     avg_train_accs = []
     avg_valid_losses = []
     avg_valid_accs = []
     for epoch in range(EPOCH):
 
+
+        # According to limited memory space (RAM),
+        #   train the model based on little data each epoch.
         train_batches = []
         random_train_idx = np.arange(len(x_train)-BATCH_SIZE)
         np.random.shuffle(random_train_idx)
-        random_train_idx = random_train_idx[:TRAIN_BATCHES_LEN]
-        pbar = tqdm(random_train_idx, total=len(random_train_idx), ascii=True,
-                    desc=f"Sampling random train batches ({TRAIN_BATCHES_LEN}/{len(x_train)-BATCH_SIZE}={TRAIN_BATCHES_LEN/(len(x_train)-BATCH_SIZE)*100:.3f}%)")
-        for i in pbar:
+        random_train_idx = random_train_idx[:TRAIN_BATCH_LEN]
+        progress_bar = tqdm(
+            random_train_idx, total=len(random_train_idx), ascii=True,
+            desc=f"Sampling random train batches " +
+                 f"({TRAIN_BATCH_LEN}/{len(x_train)-BATCH_SIZE}={TRAIN_BATCH_LEN/(len(x_train)-BATCH_SIZE)*100:.3f}%)"
+        )
+        for i in progress_bar:
             train_batches.append((x_train[i:i+BATCH_SIZE], y_train[i:i+BATCH_SIZE]))
 
         valid_batches = []
         random_valid_idx = np.arange(len(x_valid)-BATCH_SIZE)
         np.random.shuffle(random_valid_idx)
-        random_valid_idx = random_valid_idx[:VALID_BATCHES_LEN]
-        pbar = tqdm(random_valid_idx, total=len(random_valid_idx), ascii=True,
-                    desc=f"Sampling random valid batches ({VALID_BATCHES_LEN}/{len(x_valid)-BATCH_SIZE}={VALID_BATCHES_LEN/(len(x_valid)-BATCH_SIZE)*100:.3f}%)")
-        for i in pbar:
+        random_valid_idx = random_valid_idx[:VALID_BATCH_LEN]
+        progress_bar = tqdm(
+            random_valid_idx, total=len(random_valid_idx), ascii=True,
+            desc=f"Sampling random valid batches " +
+                 f"({VALID_BATCH_LEN}/{len(x_valid)-BATCH_SIZE}={VALID_BATCH_LEN/(len(x_valid)-BATCH_SIZE)*100:.3f}%)"
+        )
+        for i in progress_bar:
             valid_batches.append((x_valid[i:i+BATCH_SIZE], y_valid[i:i+BATCH_SIZE]))
 
+
+        # Record every losses and accuracies per batch in one epoch
         train_losses = []
         train_accs  = []
         valid_losses = []
@@ -193,17 +226,25 @@ def main():
         valid_loss.reset_states()
         valid_acc.reset_states()
 
-        # # Test
+        # # For testing
         # testing_losses = []
         # lrs = []
 
+
+        # Training
         print('')
-        pbar = tqdm(enumerate(train_batches), desc=f"Epoch {epoch+1:3d}", total=len(train_batches), ascii=True)
-        for (i, (x_input, y_real)) in pbar:
+        progress_bar = tqdm(enumerate(train_batches), desc=f"Epoch {epoch+1:3d}", total=len(train_batches), ascii=True)
+        for (i, (x_input, y_real)) in progress_bar:
             y_pred = train_step(x_input, y_real)
             train_losses.append(train_loss.result())
             train_accs.append(train_acc.result())
-            pbar.set_description(f"Epoch {epoch+1:3d}: train loss = {tf.math.reduce_mean(train_losses):.5f}, train accuracy = {tf.math.reduce_mean(train_accs):.3f}% | current learning rate: {optimizer._decayed_lr('float32').numpy():.8f} | BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
+            progress_bar.set_description(
+                f"Epoch {epoch+1:3d}: " +
+                f"train loss = {tf.math.reduce_mean(train_losses):.5f}, train accuracy = {tf.math.reduce_mean(train_accs):.3f}% | " +
+                f"current learning rate: {optimizer._decayed_lr('float32').numpy():.8f} | " +
+                f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
+
+            # # For testing
             # if i % 50 == 0:
             #     testing_losses.append(train_loss.result())
             #     lrs.append(optimizer._decayed_lr('float32').numpy())
@@ -211,18 +252,20 @@ def main():
             #         'loss': testing_losses,
             #         'lr': lrs,
             #     })
+
         avg_train_losses.append(np.mean(train_losses))
         avg_train_accs.append(np.mean(train_accs))
 
         os.system('cls')
 
+        # Validating
         print('')
-        pbar = tqdm(valid_batches, desc=f"Epoch {epoch+1:3d}", total=len(valid_batches), ascii=True)
-        for (x_input, y_real) in pbar:
+        progress_bar = tqdm(valid_batches, desc=f"Epoch {epoch+1:3d}", total=len(valid_batches), ascii=True)
+        for (x_input, y_real) in progress_bar:
             y_pred = valid_step(x_input, y_real)
             valid_losses.append(valid_loss.result())
             valid_accs.append(valid_acc.result())
-            pbar.set_description(f"Epoch {epoch+1:3d}: valid loss = {tf.math.reduce_mean(valid_losses):.5f}, valid accuracy = {tf.math.reduce_mean(valid_accs):.3f}% | BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
+            progress_bar.set_description(f"Epoch {epoch+1:3d}: valid loss = {tf.math.reduce_mean(valid_losses):.5f}, valid accuracy = {tf.math.reduce_mean(valid_accs):.3f}% | BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
         avg_valid_losses.append(np.mean(valid_losses))
         avg_valid_accs.append(np.mean(valid_accs))
 
