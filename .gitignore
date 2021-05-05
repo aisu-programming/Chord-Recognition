@@ -9,6 +9,7 @@ venv4W
 venv4L
 
 # Codes
+test
 *.pyc
 
 # Models

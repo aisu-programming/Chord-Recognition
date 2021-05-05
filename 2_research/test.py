@@ -21,7 +21,14 @@ import tensorflow as tf
 # y = tf.constant([0.5])
 # print(tf.cast(tf.math.greater(x, y), dtype=tf.float32))
 
-y_pred = tf.constant([[1., 0., 0., 0.], [0., 1., 0., 0.], [0.1, 0.4, 0.5, 0.]])
-y_true = tf.constant([[1., 0., 0., 0.], [1., 0., 0., 0.], [1., 0., 0., 0.]])
+# y_pred = tf.constant([[1., 0., 0., 0.], [0., 1., 0., 0.], [0.1, 0.4, 0.5, 0.]])
+# y_true = tf.constant([[1., 0., 0., 0.], [1., 0., 0., 0.], [1., 0., 0., 0.]])
 
-print(tf.keras.losses.CategoricalCrossentropy(reduction='none')(y_true, y_pred))
+# print(tf.keras.losses.CategoricalCrossentropy(reduction='none')(y_true, y_pred))
+
+
+from utils import plot_attns
+import numpy as np
+
+a = np.random.random((4, 64, 16, 100, 100))
+plot_attns(r"test", a, a)

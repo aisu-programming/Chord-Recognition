@@ -5,7 +5,7 @@ import tensorflow as tf
 from tqdm import tqdm
 
 from btc import MyModel
-from make_dir_and_plot import make_dir, plot_history, plot_loss_lr
+from utils import make_dir, plot_history, plot_loss_lr, plot_attns
 
 
 
@@ -16,30 +16,33 @@ HOP_LENGTH = 4480
 VALID_RATIO = 0.2
 
 ''' Model parameters '''
-# MODEL_MODE = 'seq2seq'
-MODEL_MODE = 'seq2one'
+MODEL_MODE = 'seq2seq'
+# MODEL_MODE = 'seq2one'
 OUTPUT_MODE = '63'
 # OUTPUT_MODE = '13+6'
-BATCH_LEN = 101
+BATCH_LEN = 201
 DIM = 192
-N = 12
+QKV_DIM = 256
+N = 3
 NUM_HEADS = 16
 DROPOUT = 0.2
-CONV_NUM = 2
+CONV_NUM = 3
 CONV_DIM = 512
 
 ''' Preprocess parameters '''
 RANDOM_SEED = 1
 np.random.seed(RANDOM_SEED)
-DATASET_HOP = 15
-TRAIN_BATCH_LEN = 200
-VALID_BATCH_LEN = 100
+DATASET_HOP = 70
+TRAIN_BATCH_LEN = 1000
+VALID_BATCH_LEN = 1000
 
 ''' Training parameters '''
-INITIAL_LEARNING_RATE = 5e-2
-DECAY_RATE = 0.987
+INITIAL_LR = 5e-2
+WARMUP_STEPS = 2000
+DECAY_STEPS = 200
+DECAY_RATE = 0.99
 EPOCH = 300
-BATCH_SIZE = 64
+BATCH_SIZE = 256
 CKPT_DIR = make_dir()
 
 
@@ -67,6 +70,7 @@ def save_details():
         f.write(f"OUTPUT_MODE: {OUTPUT_MODE}\n")
         f.write(f"BATCH_LEN  : {BATCH_LEN}\n")
         f.write(f"DIM        : {DIM}\n")
+        f.write(f"QKV_DIM    : {QKV_DIM}\n")
         f.write(f"N          : {N}\n")
         f.write(f"NUM_HEADS  : {NUM_HEADS}\n")
         f.write(f"DROPOUT    : {DROPOUT}\n")
@@ -74,32 +78,47 @@ def save_details():
         f.write(f"CONV_DIM   : {CONV_DIM}\n\n")
 
         f.write(f"# Training parameters\n")
-        f.write(f"RANDOM_SEED          : {RANDOM_SEED}\n")
-        f.write(f"DATASET_HOP          : {DATASET_HOP}\n")
-        f.write(f"TRAIN_BATCH_LEN      : {TRAIN_BATCH_LEN}\n")
-        f.write(f"VALID_BATCH_LEN      : {VALID_BATCH_LEN}\n")
-        f.write(f"INITIAL_LEARNING_RATE: {INITIAL_LEARNING_RATE}\n")
-        f.write(f"DECAY_RATE           : {DECAY_RATE}\n")
-        f.write(f"EPOCH                : {EPOCH}\n")
-        f.write(f"BATCH_SIZE           : {BATCH_SIZE}\n")
+        f.write(f"RANDOM_SEED    : {RANDOM_SEED}\n")
+        f.write(f"DATASET_HOP    : {DATASET_HOP}\n")
+        f.write(f"TRAIN_BATCH_LEN: {TRAIN_BATCH_LEN}\n")
+        f.write(f"VALID_BATCH_LEN: {VALID_BATCH_LEN}\n")
+        f.write(f"INITIAL_LR     : {INITIAL_LR}\n")
+        f.write(f"WARMUP_STEPS   : {WARMUP_STEPS}\n")
+        f.write(f"DECAY_STEPS    : {DECAY_STEPS}\n")
+        f.write(f"DECAY_RATE     : {DECAY_RATE}\n")
+        f.write(f"EPOCH          : {EPOCH}\n")
+        f.write(f"BATCH_SIZE     : {BATCH_SIZE}\n")
+
+
+class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+    def __init__(self, initial_lr, warmup_steps, decay_steps, decay_rate):
+        super(CustomSchedule, self).__init__()
+        self.ilr = initial_lr
+        self.ws = warmup_steps
+        self.ds = decay_steps
+        self.dr = decay_rate
+    def __call__(self, step):
+        arg1 = step / self.ws
+        arg2 = self.dr ** ((step - self.ws) / self.ds)
+        return self.ilr * tf.math.minimum(arg1, arg2)
 
 
 # Customized training step
 @tf.function
 def train_step(x, y_real):
     with tf.GradientTape() as tape:
-        y_pred = model(x, training=True)
+        y_pred, attns_forward, attns_backward = model(x, training=True)
         loss = loss_function(y_real, y_pred, loss_objects, BATCH_LEN//2)
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     train_loss(loss)
     train_acc(accuracy_function(y_real, y_pred, BATCH_LEN//2))
-    return y_pred
+    return y_pred, attns_forward, attns_backward
 
 
 # Customized validating step
 def valid_step(x, y_real):
-    y_pred = model(x)
+    y_pred, attns_forward, attns_backward = model(x)
     valid_loss(loss_function(y_real, y_pred, loss_objects, BATCH_LEN//2))
     valid_acc(accuracy_function(y_real, y_pred, BATCH_LEN//2))
     return y_pred
@@ -163,12 +182,12 @@ def main():
         tf.keras.losses.CategoricalCrossentropy(reduction='none'),
         tf.keras.losses.CategoricalCrossentropy(reduction='none'),
     ]
-    optimizer = tf.keras.optimizers.Adam(
-        tf.keras.optimizers.schedules.ExponentialDecay(  # lr_schedule
-            initial_learning_rate=INITIAL_LEARNING_RATE,
-            decay_steps=EPOCH,
-            decay_rate=DECAY_RATE)
-    )
+    optimizer = tf.keras.optimizers.Adam(CustomSchedule(  # lr_schedule
+        initial_lr=INITIAL_LR,
+        warmup_steps=WARMUP_STEPS,
+        decay_steps=DECAY_STEPS,
+        decay_rate=DECAY_RATE,
+    ))
     train_loss = tf.keras.metrics.Mean()
     train_acc = tf.keras.metrics.Mean()
     valid_loss = tf.keras.metrics.Mean()
@@ -177,14 +196,15 @@ def main():
 
     # Define the model
     global model
-    model = MyModel(OUTPUT_MODE, BATCH_LEN, DIM, N, NUM_HEADS, DROPOUT, CONV_NUM, CONV_DIM)
+    model = MyModel(OUTPUT_MODE, BATCH_LEN, DIM, QKV_DIM, N, NUM_HEADS, DROPOUT, CONV_NUM, CONV_DIM)
 
 
-    # Average losses and accuracies per epoch for plotting figures
+    # Average losses, accuracies and learning rate per epoch for plotting figures
     avg_train_losses = []
     avg_train_accs = []
     avg_valid_losses = []
     avg_valid_accs = []
+    learning_rate = []
     for epoch in range(EPOCH):
 
 
@@ -226,35 +246,23 @@ def main():
         valid_loss.reset_states()
         valid_acc.reset_states()
 
-        # # For testing
-        # testing_losses = []
-        # lrs = []
-
 
         # Training
         print('')
         progress_bar = tqdm(enumerate(train_batches), desc=f"Epoch {epoch+1:3d}", total=len(train_batches), ascii=True)
         for (i, (x_input, y_real)) in progress_bar:
-            y_pred = train_step(x_input, y_real)
+            y_pred, attns_forward, attns_backward = train_step(x_input, y_real)
             train_losses.append(train_loss.result())
             train_accs.append(train_acc.result())
             progress_bar.set_description(
                 f"Epoch {epoch+1:3d}: " +
-                f"train loss = {tf.math.reduce_mean(train_losses):.5f}, train accuracy = {tf.math.reduce_mean(train_accs):.3f}% | " +
+                f"train loss = {np.mean(train_losses):.5f}, train accuracy = {np.mean(train_accs):.3f}% | " +
                 f"current learning rate: {optimizer._decayed_lr('float32').numpy():.8f} | " +
                 f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
 
-            # # For testing
-            # if i % 50 == 0:
-            #     testing_losses.append(train_loss.result())
-            #     lrs.append(optimizer._decayed_lr('float32').numpy())
-            #     plot_loss_lr(CKPT_DIR, {
-            #         'loss': testing_losses,
-            #         'lr': lrs,
-            #     })
-
         avg_train_losses.append(np.mean(train_losses))
         avg_train_accs.append(np.mean(train_accs))
+        learning_rate.append(optimizer._decayed_lr('float32').numpy())
 
         os.system('cls')
 
@@ -265,7 +273,10 @@ def main():
             y_pred = valid_step(x_input, y_real)
             valid_losses.append(valid_loss.result())
             valid_accs.append(valid_acc.result())
-            progress_bar.set_description(f"Epoch {epoch+1:3d}: valid loss = {tf.math.reduce_mean(valid_losses):.5f}, valid accuracy = {tf.math.reduce_mean(valid_accs):.3f}% | BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
+            progress_bar.set_description(
+                f"Epoch {epoch+1:3d}: " +
+                f"valid loss = {np.mean(valid_losses):.5f}, valid accuracy = {np.mean(valid_accs):.3f}% | " +
+                f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
         avg_valid_losses.append(np.mean(valid_losses))
         avg_valid_accs.append(np.mean(valid_accs))
 
@@ -276,7 +287,10 @@ def main():
             'train_acc' : avg_train_accs,
             'valid_loss': avg_valid_losses,
             'valid_acc' : avg_valid_accs,
+            'lr'        : learning_rate,
         })
+
+        plot_attns(CKPT_DIR, attns_forward, attns_backward)
 
     return
 

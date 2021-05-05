@@ -8,15 +8,15 @@ import tensorflow as tf
 
 ''' Function '''
 class MyMultiHeadAttention(tf.keras.layers.Layer):
-    def __init__(self, num_heads, dim):
+    def __init__(self, num_heads, qkv_dim, dim):
         super(MyMultiHeadAttention, self).__init__()
-        self.num_heads  = num_heads
-        self.dim = dim
-        assert dim % self.num_heads == 0
-        self.depth = dim // self.num_heads
-        self.W_q = tf.keras.layers.Dense(dim)
-        self.W_k = tf.keras.layers.Dense(dim)
-        self.W_v = tf.keras.layers.Dense(dim)
+        self.num_heads = num_heads
+        self.qkv_dim   = qkv_dim
+        assert qkv_dim % self.num_heads == 0
+        self.depth = qkv_dim // self.num_heads
+        self.W_q = tf.keras.layers.Dense(qkv_dim)
+        self.W_k = tf.keras.layers.Dense(qkv_dim)
+        self.W_v = tf.keras.layers.Dense(qkv_dim)
         self.dense = tf.keras.layers.Dense(dim)
 
     def split_heads(self, x):
@@ -31,7 +31,7 @@ class MyMultiHeadAttention(tf.keras.layers.Layer):
         if attention_mask is not None: scaled_attention_logits += (attention_mask * -1e9)
         attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)
         output = tf.matmul(attention_weights, V)
-        return output
+        return output, attention_weights
 
     def call(self, Q, K, V, attention_mask):
         Q = self.W_q(Q)
@@ -40,13 +40,13 @@ class MyMultiHeadAttention(tf.keras.layers.Layer):
         Q = self.split_heads(Q)
         K = self.split_heads(K)
         V = self.split_heads(V)
-        scaled_attention = self.scaled_dot_product_attention(Q, K, V, attention_mask)
+        scaled_attention, attention_weights = self.scaled_dot_product_attention(Q, K, V, attention_mask)
         scaled_attention = tf.transpose(scaled_attention, perm=[0, 2, 1, 3])
         concat_attention = tf.reshape(scaled_attention,
-            shape=(tf.shape(scaled_attention)[0], scaled_attention.shape[1], self.dim)
+            shape=(tf.shape(scaled_attention)[0], scaled_attention.shape[1], self.qkv_dim)
         )
         output = self.dense(concat_attention)
-        return output
+        return output, attention_weights
 
 
 class PositionwiseFeedForward(tf.keras.layers.Layer):
@@ -69,12 +69,12 @@ class PositionwiseFeedForward(tf.keras.layers.Layer):
 
 
 class MaskedSelfAttention(tf.keras.layers.Layer):
-    def __init__(self, batch_len, num_heads, dim, dropout, conv_num, conv_dim):
+    def __init__(self, batch_len, num_heads, qkv_dim, dim, dropout, conv_num, conv_dim):
         super(MaskedSelfAttention, self).__init__()
         self.batch_len = batch_len
         self.LayerNorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)  # 0.001)
         # self.MHA = tf.keras.layers.MultiHeadAttention(num_heads, dim)
-        self.MHA = MyMultiHeadAttention(num_heads, dim)
+        self.MHA = MyMultiHeadAttention(num_heads, qkv_dim, dim)
         self.Dropout = tf.keras.layers.Dropout(dropout)
         self.LayerNorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)  # 0.001)
         self.PFF = PositionwiseFeedForward(dim, conv_num, conv_dim, dropout)
@@ -85,18 +85,18 @@ class MaskedSelfAttention(tf.keras.layers.Layer):
 
     def call(self, x, training):
         x_tmp = self.LayerNorm1(x)
-        x += self.MHA(x_tmp, x_tmp, x_tmp, attention_mask=self.mask)
-        x = self.Dropout(x, training=training)
+        x_tmp, attn = self.MHA(x_tmp, x_tmp, x_tmp, attention_mask=self.mask)
+        x = self.Dropout(x_tmp, training=training)
         x_tmp = self.LayerNorm2(x)
         x += self.PFF(x_tmp)
-        return x
+        return x, attn
 
 
 class BidirectionalMaskedSelfAttention(tf.keras.layers.Layer):
-    def __init__(self, batch_len, num_heads, dim, dropout, conv_num, conv_dim):
+    def __init__(self, batch_len, num_heads, qkv_dim, dim, dropout, conv_num, conv_dim):
         super(BidirectionalMaskedSelfAttention, self).__init__()
-        self.forwardMaskedSelfAttention  = MaskedSelfAttention(batch_len, num_heads, dim, dropout, conv_num, conv_dim)
-        self.backwardMaskedSelfAttention = MaskedSelfAttention(batch_len, num_heads, dim, dropout, conv_num, conv_dim)
+        self.forwardMaskedSelfAttention  = MaskedSelfAttention(batch_len, num_heads, qkv_dim, dim, dropout, conv_num, conv_dim)
+        self.backwardMaskedSelfAttention = MaskedSelfAttention(batch_len, num_heads, qkv_dim, dim, dropout, conv_num, conv_dim)
         self.Dropout = tf.keras.layers.Dropout(dropout)
         self.Linear = tf.keras.layers.Dense(dim)
         self.LayerNorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)  # 0.001)
@@ -104,24 +104,26 @@ class BidirectionalMaskedSelfAttention(tf.keras.layers.Layer):
     def call(self, x, training):
         x_forward  = x
         x_backward = tf.reverse(x, axis=[-2])
-        x_forward  = self.forwardMaskedSelfAttention(x_forward, training=training)
-        x_backward = self.backwardMaskedSelfAttention(x_backward, training=training)
+        x_forward,  attn_forward  = self.forwardMaskedSelfAttention(x_forward, training=training)
+        x_backward, attn_backward = self.backwardMaskedSelfAttention(x_backward, training=training)
         x_backward = tf.reverse(x_backward, axis=[-2])
         x = tf.concat([x_forward, x_backward], axis=-1)
         x = self.Dropout(x, training=training)
         x = self.Linear(x)
         x = self.LayerNorm(x)
-        return x
+        # tf.print(attn_forward)
+        # tf.print(attn_backward)
+        return x, attn_forward, attn_backward
 
 
 class MyModel(tf.keras.Model):
-    def __init__(self, output_mode, batch_len, dim, N, num_heads, dropout, conv_num, conv_dim):
+    def __init__(self, output_mode, batch_len, dim, qkv_dim, N, num_heads, dropout, conv_num, conv_dim):
         super(MyModel, self).__init__()
         self.output_mode = output_mode
         self.batch_len = batch_len
         self.dim = dim
         self.BidirectionalMaskedSelfAttentions = [
-            BidirectionalMaskedSelfAttention(batch_len, num_heads, dim, dropout, conv_num, conv_dim)
+            BidirectionalMaskedSelfAttention(batch_len, num_heads, qkv_dim, dim, dropout, conv_num, conv_dim)
             for _ in range(N)
         ]
         if output_mode == '63':
@@ -143,12 +145,16 @@ class MyModel(tf.keras.Model):
 
     def call(self, x, training):
         x += self.PositionalEncoding
+        attns_forward  = []
+        attns_backward = []
         for BidirectionalMaskedSelfAttention in self.BidirectionalMaskedSelfAttentions:
-            x = BidirectionalMaskedSelfAttention(x, training=training)
+            x, attn_forward, attn_backward = BidirectionalMaskedSelfAttention(x, training=training)
+            attns_forward.append(attn_forward)
+            attns_backward.append(attn_backward)
         if self.output_mode == '63':
             x = self.ChordSoftmax(x)
         elif self.output_mode == '13+6':
             root = self.RootSoftmax(x)
             quality = self.QualitySoftmax(x)
             x = tf.concat([root, quality], axis=-1)
-        return x
+        return x, attns_forward, attns_backward

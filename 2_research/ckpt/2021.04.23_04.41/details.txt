@@ -1,5 +1,0 @@
-seq2seq
-len 19
-batch size 256
-5.5e-3
-0.999
