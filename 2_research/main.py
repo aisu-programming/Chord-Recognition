@@ -41,6 +41,7 @@ INITIAL_LR = 1e-4
 WARMUP_STEPS = 10000
 DECAY_STEPS = 2000
 DECAY_RATE = 0.99
+MIN_LR = 5e-6
 EPOCH = 300
 BATCH_SIZE = 128
 CKPT_DIR = make_dir()
@@ -86,6 +87,7 @@ def save_details():
         f.write(f"WARMUP_STEPS   : {WARMUP_STEPS}\n")
         f.write(f"DECAY_STEPS    : {DECAY_STEPS}\n")
         f.write(f"DECAY_RATE     : {DECAY_RATE}\n")
+        f.write(f"MIN_LR         : {MIN_LR}\n")
         f.write(f"EPOCH          : {EPOCH}\n")
         f.write(f"BATCH_SIZE     : {BATCH_SIZE}\n")
 
@@ -188,6 +190,7 @@ def main():
         warmup_steps=WARMUP_STEPS,
         decay_steps=DECAY_STEPS,
         decay_rate=DECAY_RATE,
+        min_lr=MIN_LR,
     ))
     train_loss = tf.keras.metrics.Mean()
     train_acc = tf.keras.metrics.Mean()
