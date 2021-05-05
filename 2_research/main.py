@@ -20,29 +20,29 @@ MODEL_MODE = 'seq2seq'
 # MODEL_MODE = 'seq2one'
 OUTPUT_MODE = '63'
 # OUTPUT_MODE = '13+6'
-BATCH_LEN = 201
+BATCH_LEN = 101
 DIM = 192
-QKV_DIM = 256
-N = 3
-NUM_HEADS = 16
+QKV_DIM = 128
+N = 8
+NUM_HEADS = 4
 DROPOUT = 0.2
-CONV_NUM = 3
-CONV_DIM = 512
+CONV_NUM = 2
+CONV_DIM = 128
 
 ''' Preprocess parameters '''
 RANDOM_SEED = 1
 np.random.seed(RANDOM_SEED)
 DATASET_HOP = 70
-TRAIN_BATCH_LEN = 1000
-VALID_BATCH_LEN = 1000
+TRAIN_BATCH_LEN = 2000
+VALID_BATCH_LEN = None
 
 ''' Training parameters '''
-INITIAL_LR = 5e-2
-WARMUP_STEPS = 2000
-DECAY_STEPS = 200
+INITIAL_LR = 1e-4
+WARMUP_STEPS = 10000
+DECAY_STEPS = 2000
 DECAY_RATE = 0.99
 EPOCH = 300
-BATCH_SIZE = 256
+BATCH_SIZE = 128
 CKPT_DIR = make_dir()
 
 
@@ -91,16 +91,17 @@ def save_details():
 
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
-    def __init__(self, initial_lr, warmup_steps, decay_steps, decay_rate):
+    def __init__(self, initial_lr, warmup_steps, decay_steps, decay_rate, min_lr):
         super(CustomSchedule, self).__init__()
         self.ilr = initial_lr
-        self.ws = warmup_steps
-        self.ds = decay_steps
-        self.dr = decay_rate
+        self.ws  = warmup_steps
+        self.ds  = decay_steps
+        self.dr  = decay_rate
+        self.mlr = min_lr
     def __call__(self, step):
         arg1 = step / self.ws
         arg2 = self.dr ** ((step - self.ws) / self.ds)
-        return self.ilr * tf.math.minimum(arg1, arg2)
+        return tf.math.maximum(self.ilr * tf.math.minimum(arg1, arg2), self.mlr)
 
 
 # Customized training step
@@ -213,7 +214,9 @@ def main():
         train_batches = []
         random_train_idx = np.arange(len(x_train)-BATCH_SIZE)
         np.random.shuffle(random_train_idx)
-        random_train_idx = random_train_idx[:TRAIN_BATCH_LEN]
+        global TRAIN_BATCH_LEN
+        if TRAIN_BATCH_LEN is None: TRAIN_BATCH_LEN = len(random_train_idx)
+        else: random_train_idx = random_train_idx[:TRAIN_BATCH_LEN]
         progress_bar = tqdm(
             random_train_idx, total=len(random_train_idx), ascii=True,
             desc=f"Sampling random train batches " +
@@ -225,7 +228,9 @@ def main():
         valid_batches = []
         random_valid_idx = np.arange(len(x_valid)-BATCH_SIZE)
         np.random.shuffle(random_valid_idx)
-        random_valid_idx = random_valid_idx[:VALID_BATCH_LEN]
+        global VALID_BATCH_LEN
+        if VALID_BATCH_LEN is None: VALID_BATCH_LEN = len(random_valid_idx)
+        else: random_valid_idx = random_valid_idx[:VALID_BATCH_LEN]
         progress_bar = tqdm(
             random_valid_idx, total=len(random_valid_idx), ascii=True,
             desc=f"Sampling random valid batches " +

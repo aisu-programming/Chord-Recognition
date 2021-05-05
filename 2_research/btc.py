@@ -111,8 +111,6 @@ class BidirectionalMaskedSelfAttention(tf.keras.layers.Layer):
         x = self.Dropout(x, training=training)
         x = self.Linear(x)
         x = self.LayerNorm(x)
-        # tf.print(attn_forward)
-        # tf.print(attn_backward)
         return x, attn_forward, attn_backward
 
 

@@ -71,7 +71,7 @@ def plot_attns(ckpt_dir, attns_forward, attns_backward):
 
     for i in range(attns_forward.shape[0]):
 
-        fig, axs = plt.subplots(4, 4)
+        fig, axs = plt.subplots(2, 2)
         fig.set_size_inches(20, 23)
         fig.suptitle(f"Forward attentions (N={i+1})", fontsize=20)
         for j in range(attns_forward.shape[1]):
@@ -81,7 +81,7 @@ def plot_attns(ckpt_dir, attns_forward, attns_backward):
         plt.tight_layout()
         plt.savefig(f"{ckpt_dir}/attns_forward_N={i+1}.png", dpi=200)
 
-        fig, axs = plt.subplots(4, 4)
+        fig, axs = plt.subplots(2, 2)
         fig.set_size_inches(20, 23)
         fig.suptitle(f"Backward attentions (N={i+1})", fontsize=20)
         for j in range(attns_backward.shape[1]):
