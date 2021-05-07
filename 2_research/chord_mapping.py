@@ -38,8 +38,4 @@ mapping_seventh = {
     'dim' : 'min', 
     '5'   : '', 
     'maj6': '',
-
-    # Add by me
-    'maj'   : '',
-    'sus2'  : '',
 }

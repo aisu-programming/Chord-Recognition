@@ -1,95 +1,69 @@
 ''' Libraries '''
-import time, os
+import os
+import time
+import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import tensorflow as tf
+from tqdm import tqdm
+
+from process_chord import process_chords
 
 
-''' Function '''
+''' Functions '''
 def make_dir():
     ckpt_dir = f"ckpt/{time.strftime('%Y.%m.%d_%H.%M', time.localtime())}"
-    if not os.path.exists(ckpt_dir): os.makedirs(ckpt_dir)
+    if not os.path.exists(ckpt_dir):
+        os.makedirs(ckpt_dir)
+        os.makedirs(f"{ckpt_dir}/min_all_loss")
+        os.makedirs(f"{ckpt_dir}/min_mid_loss")
+        os.makedirs(f"{ckpt_dir}/max_all_acc")
+        os.makedirs(f"{ckpt_dir}/max_mid_acc")
     return ckpt_dir
 
 
-def plot_history(ckpt_dir, history):
+def loss_function(y_real, y_pred, loss_criterion):
+    mid_idx  = y_real.shape[1] // 2
+    all_loss = loss_criterion(y_real, y_pred)
+    mid_loss = all_loss[:, mid_idx]
+    return tf.reduce_mean(all_loss), tf.reduce_mean(mid_loss)
+
+
+def accuracy_function(y_real, y_pred):
+    mid_idx    = y_real.shape[1] // 2
+    y_real_ids = tf.argmax(y_real, axis=-1)
+    y_pred_ids = tf.argmax(y_pred, axis=-1)
+    all_acc    = tf.cast(tf.equal(y_real_ids, y_pred_ids), dtype=tf.float32)
+    mid_acc    = all_acc[:, mid_idx]
+    return tf.reduce_mean(all_acc)*100, tf.reduce_mean(mid_acc)*100
+
+
+def read_data(path, song_amount, sample_rate, hop_len, model_target, output_mode):
+    x_dataset, y_dataset = [], []
+    for i in tqdm(range(song_amount), desc="Reading data", total=song_amount, ascii=True):
+        try: data = pd.read_csv(f"{path}/{i+1}/data_{sample_rate}_{hop_len}.csv", index_col=0).values
+        except: continue
+        cqts   = data[:, :-1].tolist()
+        chords = [ chord.strip() for chord in data[:, -1].tolist() ]
+        x_dataset.append(cqts)
+        y_dataset.append(process_chords(chords, model_target, output_mode))
+    return x_dataset, y_dataset
+
+
+def show_pred_and_truth(y_real, y_pred):
+
+    PRECISION = 10
+    np.set_printoptions(precision=PRECISION, edgeitems=8, linewidth=272, suppress=True)
+
+    y_real = y_real[0]
+    y_pred = y_pred[0].numpy()
+    processed_y_pred = np.eye(y_pred.shape[-1])[np.argmax(y_pred, axis=-1)]
+    recognization_idx = ((np.arange(y_pred.shape[-1])+1)/(10**PRECISION))[np.newaxis, :]
     
-    train_loss = history['train_loss']
-    train_acc = history['train_acc']
-    valid_loss = history['valid_loss']
-    valid_acc = history['valid_acc']
-    lr = history['lr']
-    epochs_length = range(1, 1+len(train_loss))
-
-    fig, axs = plt.subplots(3)
-    fig.set_size_inches(14, 20)
-    fig.suptitle('History')
-    plt.xlabel('Epochs')
-
-    axs[0].set_ylabel('Loss')
-    axs[0].plot(epochs_length, train_loss, "b-", label='Training')
-    if valid_loss != []: axs[0].plot(epochs_length, valid_loss, "r-", label='Validation')
-    axs[0].legend()
-
-    axs[1].set_ylabel('Accuracy')
-    axs[1].plot(epochs_length, train_acc, "b-", label='Training')
-    if valid_acc != []: axs[1].plot(epochs_length, valid_acc, "r-", label='Validation')
-    axs[1].legend()
-
-    axs[2].set_ylabel('Learning Rate')
-    axs[2].plot(epochs_length, lr, "b-")
-
-    # plt.tight_layout()
-    plt.savefig(f"{ckpt_dir}/history.png", dpi=200)
-    return
-
-
-def plot_loss_lr(ckpt_dir, history):
-
-    raise NotImplementedError
+    print("Sample prediction: Shape =", y_pred.shape)
+    print(y_pred)
+    print("\nProcessed sample prediction: Shape =", y_pred.shape)
+    print(np.concatenate([processed_y_pred, recognization_idx], axis=-0))
+    print("\nSample ground truth: Shape =", y_real.shape)
+    print(np.concatenate([y_real, recognization_idx], axis=-0))
     
-    loss = history['loss'][-20:]
-    lr = history['lr'][-20:]
-    epochs_length = range(1, min(len(loss)+1, 21))
-
-    fig, axs = plt.subplots(2)
-    fig.set_size_inches(12, 16)
-    fig.suptitle('Loss LR Comparition')
-    plt.xlabel('Steps')
-    axs[0].plot(epochs_length, loss, "b-", label='Loss')
-    axs[0].legend()
-    axs[1].plot(epochs_length, lr, "b-", label='Learning Rate')
-    axs[1].legend()
-
-    plt.savefig(f"{ckpt_dir}/Loss_LR.png", dpi=200)
-    return
-
-
-def plot_attns(ckpt_dir, attns_forward, attns_backward):
-
-    attns_forward  = np.squeeze(np.array(attns_forward)[:, -1])
-    attns_backward = np.squeeze(np.array(attns_backward)[:, -1])
-
-    for i in range(attns_forward.shape[0]):
-
-        fig, axs = plt.subplots(2, 2)
-        fig.set_size_inches(20, 23)
-        fig.suptitle(f"Forward attentions (N={i+1})", fontsize=20)
-        for j in range(attns_forward.shape[1]):
-            axs[j//4][j%4].set_title(j+1)
-            axs[j//4][j%4].matshow(attns_forward[i, j])
-            # axs[j//4][j%4].axis('off')
-        plt.tight_layout()
-        plt.savefig(f"{ckpt_dir}/attns_forward_N={i+1}.png", dpi=200)
-
-        fig, axs = plt.subplots(2, 2)
-        fig.set_size_inches(20, 23)
-        fig.suptitle(f"Backward attentions (N={i+1})", fontsize=20)
-        for j in range(attns_backward.shape[1]):
-            axs[j//4][j%4].set_title(j+1)
-            axs[j//4][j%4].matshow(attns_backward[i, j])
-            # axs[j//4][j%4].axis('off')
-        plt.tight_layout()
-        plt.savefig(f"{ckpt_dir}/attns_backward_N={i+1}.png", dpi=200)
-        plt.close('all')
-
     return

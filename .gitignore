@@ -12,5 +12,8 @@ venv4L
 test
 *.pyc
 
-# Models
+# Models & Checkpoints
 *.h5
+checkpoint
+ckpt-*
+attns_*.png

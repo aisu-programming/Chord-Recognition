@@ -8,17 +8,18 @@ from process_chord import process_chords_13_6
 
 
 ''' Functions '''
-def loss_function(y_real, y_pred, loss_objects, mid_idx=None):
-    y_real_roots, y_real_qualities = y_real[:, :, :13], y_real[:, :, 13:]
-    y_pred_roots, y_pred_qualities = y_pred[:, :, :13], y_pred[:, :, 13:]
+def loss_function(y_real, y_pred, loss_objects, mid_idx):
+    y_real_roots, y_real_qualities = y_real[:, mid_idx, :13], y_real[:, mid_idx, 13:]
+    y_pred_roots, y_pred_qualities = y_pred[:, mid_idx, :13], y_pred[:, mid_idx, 13:]
     root_losses = loss_objects[0](y_real_roots, y_pred_roots)
     quality_losses = loss_objects[1](y_real_qualities, y_pred_qualities)
-    return tf.reduce_sum(root_losses*quality_losses)
+    # return tf.reduce_sum(root_losses*quality_losses)
+    return tf.reduce_sum(root_losses*quality_losses)/len(root_losses)
 
 
-def accuracy_function(y_real, y_pred, mid_idx=None):
-    y_real_root_ids, y_real_quality_ids = tf.argmax(y_real[:, :, :13], axis=-1), tf.argmax(y_real[:, :, 13:], axis=-1)
-    y_pred_root_ids, y_pred_quality_ids = tf.argmax(y_pred[:, :, :13], axis=-1), tf.argmax(y_pred[:, :, 13:], axis=-1)
+def accuracy_function(y_real, y_pred, mid_idx):
+    y_real_root_ids, y_real_quality_ids = tf.argmax(y_real[:, mid_idx, :13], axis=-1), tf.argmax(y_real[:, mid_idx, 13:], axis=-1)
+    y_pred_root_ids, y_pred_quality_ids = tf.argmax(y_pred[:, mid_idx, :13], axis=-1), tf.argmax(y_pred[:, mid_idx, 13:], axis=-1)
     root_accs = tf.equal(y_real_root_ids, y_pred_root_ids)
     quality_accs = tf.equal(y_real_quality_ids, y_pred_quality_ids)
     accs = tf.cast(tf.logical_and(root_accs, quality_accs), dtype=tf.float32)
@@ -48,13 +49,14 @@ def read_data(path, song_amount, sample_rate, hop_len):
     return x_dataset, y_dataset
 
 
-def show_pred_and_truth(y_real, y_pred, mid_idx=None):
+def show_pred_and_truth(y_real, y_pred, mid_idx):
 
-    PRECISION = 8
-    np.set_printoptions(precision=PRECISION, edgeitems=9, linewidth=272, suppress=True)
+    PRECISION = 6
+    np.set_printoptions(precision=PRECISION, linewidth=272, suppress=True)
 
-    y_real = y_real[0]
-    y_pred = y_pred[0].numpy()
+    y_real = (y_real[0, mid_idx])[np.newaxis, :]
+    y_pred = (y_pred[0, mid_idx].numpy())[np.newaxis, :]
+    # Not sure
     processed_y_pred = np.concatenate([
         np.eye(13)[np.argmax(y_pred[:, :, :13], axis=-1)],
         np.eye(6)[np.argmax(y_pred[:, :, 13:], axis=-1)]],
