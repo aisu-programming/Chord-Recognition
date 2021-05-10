@@ -115,9 +115,9 @@ class BidirectionalMaskedSelfAttention(tf.keras.layers.Layer):
 
 
 class MyModel(tf.keras.Model):
-    def __init__(self, output_mode, batch_len, dim, dropout, qkv_dim, N, num_heads, conv_num, conv_dim):
+    def __init__(self, model_target, pred_mode, batch_len, dim, dropout, qkv_dim, N, num_heads, conv_num, conv_dim):
         super(MyModel, self).__init__()
-        self.output_mode = output_mode
+        self.pred_mode = pred_mode
         self.batch_len = batch_len
         self.dim = dim
         self.Dropout = tf.keras.layers.Dropout(dropout)
@@ -125,11 +125,22 @@ class MyModel(tf.keras.Model):
             BidirectionalMaskedSelfAttention(batch_len, num_heads, qkv_dim, dim, dropout, conv_num, conv_dim)
             for _ in range(N)
         ]
-        if output_mode == 'integrate':
-            self.ChordSoftmax = tf.keras.layers.Dense(62, activation=tf.keras.activations.softmax)
-        elif output_mode == 'separate':
-            self.RootSoftmax = tf.keras.layers.Dense(13, activation=tf.keras.activations.softmax)
-            self.QualitySoftmax = tf.keras.layers.Dense(7, activation=tf.keras.activations.softmax)
+        if model_target == 'majmin':
+            if pred_mode == 'integrate':
+                self.ChordSoftmax = tf.keras.layers.Dense(26, activation=tf.keras.activations.softmax)
+            elif pred_mode == 'separate':
+                self.RootSoftmax = tf.keras.layers.Dense(13, activation=tf.keras.activations.softmax)
+                self.QualitySoftmax = tf.keras.layers.Dense(4, activation=tf.keras.activations.softmax)
+            else:
+                raise Exception
+        elif model_target == 'seventh':
+            if pred_mode == 'integrate':
+                self.ChordSoftmax = tf.keras.layers.Dense(62, activation=tf.keras.activations.softmax)
+            elif pred_mode == 'separate':
+                self.RootSoftmax = tf.keras.layers.Dense(13, activation=tf.keras.activations.softmax)
+                self.QualitySoftmax = tf.keras.layers.Dense(7, activation=tf.keras.activations.softmax)
+            else:
+                raise Exception
         else:
             raise Exception
 
@@ -151,9 +162,9 @@ class MyModel(tf.keras.Model):
             x, attn_forward, attn_backward = BidirectionalMaskedSelfAttention(x, training=training)
             attns_forward.append(attn_forward)
             attns_backward.append(attn_backward)
-        if self.output_mode == 'integrate':
+        if self.pred_mode == 'integrate':
             x = self.ChordSoftmax(x)
-        elif self.output_mode == 'separate':
+        elif self.pred_mode == 'separate':
             root = self.RootSoftmax(x)
             quality = self.QualitySoftmax(x)
             x = tf.concat([root, quality], axis=-1)

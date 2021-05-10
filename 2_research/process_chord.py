@@ -46,7 +46,8 @@ def process_chords(chords, model_target, pred_mode):
                 quality_ids.append(mapping_quality2id[quality])
             else:
                 quality_ids.append(mapping_quality2id['X'])
-        root_onehots = np.eye(len(mapping_root2id))[root_ids].tolist()
+        root_onehots = np.eye(13)[root_ids].tolist()
+        # root_onehots = np.eye(len(mapping_root2id.values()))[root_ids].tolist()
         quality_onehots = np.eye(len(mapping_quality2id))[quality_ids].tolist()
         onehots = np.concatenate([root_onehots, quality_onehots], axis=-1).tolist()
 

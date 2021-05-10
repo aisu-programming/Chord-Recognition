@@ -28,8 +28,8 @@ def plot_history(ckpt_dir, history):
     axs[0].set_xticks(np.arange(0, 100.1, 5))
     axs[0].set_xticks(np.arange(0, 100.1, 1), minor=True)
     axs[0].set_ylabel('Loss')
-    axs[0].set_yticks(np.arange(0, 10, 1)/2)
-    axs[0].set_yticks(np.arange(0, 10, 1)/10, minor=True)
+    axs[0].set_yticks(np.arange(0, 101, 1)/2)
+    axs[0].set_yticks(np.arange(0, 101, 1)/10, minor=True)
     axs[0].grid()
     axs[0].grid(which='minor', alpha=0.3)
     if train_all_loss != []: axs[0].plot(epochs_length, train_all_loss, 'b-', label="Training (All)")
@@ -91,21 +91,21 @@ def plot_attns(ckpt_dir, attns_forward, attns_backward):
 
     for i in range(attns_forward.shape[0]):
 
-        fig, axs = plt.subplots(4, 4)
-        fig.set_size_inches(18, 20)
+        fig, axs = plt.subplots(4, 8)
+        fig.set_size_inches(36, 20)
         fig.suptitle(f"Forward attentions (N={i+1})", fontsize=20)
         for j in range(attns_forward.shape[1]):
-            axs[j//4][j%4].set_title(j+1)
-            axs[j//4][j%4].matshow(attns_forward[i, j])
+            axs[j//8][j%8].set_title(j+1)
+            axs[j//8][j%8].matshow(attns_forward[i, j])
         plt.tight_layout()
         plt.savefig(f"{ckpt_dir}/attns_forward_N={i+1}.png", dpi=200)
 
-        fig, axs = plt.subplots(4, 4)
-        fig.set_size_inches(18, 20)
+        fig, axs = plt.subplots(4, 8)
+        fig.set_size_inches(36, 20)
         fig.suptitle(f"Backward attentions (N={i+1})", fontsize=20)
         for j in range(attns_backward.shape[1]):
-            axs[j//4][j%4].set_title(j+1)
-            axs[j//4][j%4].matshow(attns_backward[i, j])
+            axs[j//8][j%8].set_title(j+1)
+            axs[j//8][j%8].matshow(attns_backward[i, j])
         plt.tight_layout()
         plt.savefig(f"{ckpt_dir}/attns_backward_N={i+1}.png", dpi=200)
         plt.close('all')

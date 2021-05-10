@@ -65,5 +65,6 @@ def show_pred_and_truth(y_real, y_pred):
     print(np.concatenate([processed_y_pred, recognization_idx], axis=-0))
     print("\nSample ground truth: Shape =", y_real.shape)
     print(np.concatenate([y_real, recognization_idx], axis=-0))
+    print('')
     
     return

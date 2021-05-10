@@ -8,6 +8,9 @@ from btc import MyModel
 from plot import plot_history, plot_loss_lr, plot_attns
 from utils import make_dir, loss_function, accuracy_function, read_data, show_pred_and_truth
 
+physical_devices = tf.config.list_physical_devices('GPU') 
+tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
 
 
 ''' Data parameters '''
@@ -23,11 +26,11 @@ MODEL_MODE = 'seq2seq'
 # MODEL_MODE = 'seq2one'
 PRED_MODE = 'integrate'
 # PRED_MODE = 'separate'
-BATCH_LEN = 201
+BATCH_LEN = 101
 DIM = 192
-QKV_DIM = 128
-N = 3
-NUM_HEADS = 16
+QKV_DIM = 512
+N = 8
+NUM_HEADS = 32
 DROPOUT = 0.2
 CONV_NUM = 2
 CONV_DIM = 128
@@ -35,18 +38,18 @@ CONV_DIM = 128
 ''' Preprocess parameters '''
 RANDOM_SEED = 1
 np.random.seed(RANDOM_SEED)
-DATASET_HOP = 70
-TRAIN_BATCH_LEN = 300
+DATASET_HOP = BATCH_LEN
+TRAIN_BATCH_LEN = 200
 VALID_BATCH_LEN = 1500
 
 ''' Training parameters '''
-INITIAL_LR = 5e-4
+INITIAL_LR = 1e-4
 WARMUP_STEPS = TRAIN_BATCH_LEN
 DECAY_STEPS = TRAIN_BATCH_LEN
-DECAY_RATE = 0.93
-MIN_LR = 1e-6
+DECAY_RATE = 0.9
+MIN_LR = 1e-7
 EPOCH = 50
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 CKPT_DIR = make_dir()
 
 
@@ -209,17 +212,17 @@ def main():
     ))
     train_all_loss = tf.keras.metrics.Mean()
     train_mid_loss = tf.keras.metrics.Mean()
-    train_all_acc = tf.keras.metrics.Mean()
-    train_mid_acc = tf.keras.metrics.Mean()
+    train_all_acc  = tf.keras.metrics.Mean()
+    train_mid_acc  = tf.keras.metrics.Mean()
     valid_all_loss = tf.keras.metrics.Mean()
     valid_mid_loss = tf.keras.metrics.Mean()
-    valid_all_acc = tf.keras.metrics.Mean()
-    valid_mid_acc = tf.keras.metrics.Mean()
+    valid_all_acc  = tf.keras.metrics.Mean()
+    valid_mid_acc  = tf.keras.metrics.Mean()
 
 
     # Define the model & checkpoint
     global model
-    model = MyModel(PRED_MODE, BATCH_LEN, DIM, DROPOUT, QKV_DIM, N, NUM_HEADS, CONV_NUM, CONV_DIM)
+    model = MyModel(MODEL_TARGET, PRED_MODE, BATCH_LEN, DIM, DROPOUT, QKV_DIM, N, NUM_HEADS, CONV_NUM, CONV_DIM)
     ckpt = tf.train.Checkpoint(model=model, optimizer=optimizer)
     min_all_loss_ckpt_manager = tf.train.CheckpointManager(ckpt, f"{CKPT_DIR}/min_all_loss/", max_to_keep=1)
     min_mid_loss_ckpt_manager = tf.train.CheckpointManager(ckpt, f"{CKPT_DIR}/min_mid_loss/", max_to_keep=1)
@@ -237,6 +240,7 @@ def main():
     avg_valid_all_accs   = []
     avg_valid_mid_accs   = []
     learning_rates       = []
+    print('')
     for epoch in range(EPOCH):
 
 
@@ -262,8 +266,10 @@ def main():
         random_valid_idx = np.arange(len(x_valid)-BATCH_SIZE)
         np.random.shuffle(random_valid_idx)
         global VALID_BATCH_LEN
-        if VALID_BATCH_LEN is None: VALID_BATCH_LEN = len(random_valid_idx)
-        else: random_valid_idx = random_valid_idx[:VALID_BATCH_LEN]
+        if VALID_BATCH_LEN is None or VALID_BATCH_LEN > len(random_valid_idx):
+            VALID_BATCH_LEN = len(random_valid_idx)
+        else:
+            random_valid_idx = random_valid_idx[:VALID_BATCH_LEN]
         progress_bar = tqdm(
             random_valid_idx, total=len(random_valid_idx), ascii=True,
             desc=f"Sampling random valid batches " +
@@ -291,18 +297,18 @@ def main():
             y_pred, attns_forward, attns_backward = train_step(x_input, y_real)
             if MODEL_MODE == 'seq2seq':
                 progress_bar.set_description(
-                    f"Epoch {epoch+1:2d}/{EPOCH}: " +
-                    f"train all loss = {train_all_loss.result():.5f}, train middle loss = {train_mid_loss.result():.5f} | " +
-                    f"train all accuracy = {train_all_acc.result():.3f}%, train middle accuracy = {train_mid_acc.result():.3f}% | " +
-                    f"learning rate: {optimizer._decayed_lr('float32').numpy():.10f} | " +
-                    f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
+                    f"Epoch {epoch+1:2d}/{EPOCH} - TRAIN | " +
+                    f"all loss: {train_all_loss.result():.4f}, mid loss: {train_mid_loss.result():.4f} | " +
+                    f"all acc: {train_all_acc.result():.2f}%, mid acc: {train_mid_acc.result():.2f}% | " +
+                    f"lr: {optimizer._decayed_lr('float32').numpy():.10f} | ")  # +
+                    # f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
             else:
                 progress_bar.set_description(
-                    f"Epoch {epoch+1:2d}/{EPOCH}: " +
-                    f"train middle loss = {train_mid_loss.result():.5f} | " +
-                    f"train middle accuracy = {train_mid_acc.result():.3f}% | " +
-                    f"learning rate: {optimizer._decayed_lr('float32').numpy():.10f} | " +
-                    f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
+                    f"Epoch {epoch+1:2d}/{EPOCH} - TRAIN | " +
+                    f"mid loss: {train_mid_loss.result():.4f} | " +
+                    f"mid acc: {train_mid_acc.result():.2f}% | " +
+                    f"lr: {optimizer._decayed_lr('float32').numpy():.10f} | ")  # +
+                    # f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
         if MODEL_MODE == 'seq2seq': avg_train_all_losses.append(train_all_loss.result())
         avg_train_mid_losses.append(train_mid_loss.result())
         if MODEL_MODE == 'seq2seq': avg_train_all_accs.append(train_all_acc.result())
@@ -312,22 +318,22 @@ def main():
 
         # Validate model
         # os.system('cls')
-        print('')
+        # print('')
         progress_bar = tqdm(valid_batches, desc=f"Epoch {epoch+1:2d}/{EPOCH}", total=len(valid_batches), ascii=True)
         for (x_input, y_real) in progress_bar:
             y_pred = valid_step(x_input, y_real)
             if MODEL_MODE == 'seq2seq':
                 progress_bar.set_description(
-                    f"Epoch {epoch+1:2d}/{EPOCH}: " +
-                    f"valid all loss = {valid_all_loss.result():.5f}, valid middle loss = {valid_mid_loss.result():.5f} | " +
-                    f"valid all accuracy = {valid_all_acc.result():.3f}%, valid middle accuracy = {valid_mid_acc.result():.3f}% | " +
-                    f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
+                    f"Epoch {epoch+1:2d}/{EPOCH} - VALID | " +
+                    f"all loss: {valid_all_loss.result():.4f}, mid loss: {valid_mid_loss.result():.4f} | " +
+                    f"all acc: {valid_all_acc.result():.2f}%, mid acc: {valid_mid_acc.result():.2f}% | ")  # +
+                    # f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
             else:
                 progress_bar.set_description(
-                    f"Epoch {epoch+1:2d}/{EPOCH}: " +
-                    f"valid middle loss = {valid_mid_loss.result():.5f} | " +
-                    f"valid middle accuracy = {valid_mid_acc.result():.3f}% | " +
-                    f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
+                    f"Epoch {epoch+1:2d}/{EPOCH} - VALID | " +
+                    f"mid loss: {valid_mid_loss.result():.4f} | " +
+                    f"mid acc: {valid_mid_acc.result():.2f}% | ")  # +
+                    # f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
         if MODEL_MODE == 'seq2seq': avg_valid_all_losses.append(valid_all_loss.result())
         avg_valid_mid_losses.append(valid_mid_loss.result())
         if MODEL_MODE == 'seq2seq': avg_valid_all_accs.append(valid_all_acc.result())
@@ -337,26 +343,26 @@ def main():
         # Save the model checkpoint if this is the best one (with minimum loss or maximum accuracy).
         print('')
         if MODEL_MODE == 'seq2seq' and valid_all_loss.result() <= min(avg_valid_all_losses):
-            print("Saving model checkpoint with minimum all loss...")
+            print("Minimum all loss: improved! Model saved.")
             min_all_loss_ckpt_manager.save()
-        else: print("Minimum all loss did not improve, model not saving.")
+        else: print("Minimum all loss: did not improve, model not saved.")
         if valid_mid_loss.result() <= min(avg_valid_mid_losses):
-            print("Saving model checkpoint with minimum middle loss...")
+            print("Minimum mid loss: improved! Model saved.")
             min_mid_loss_ckpt_manager.save()
-        else: print("Minimum middle loss did not improve, model not saving.")
+        else: print("Minimum mid loss: did not improve, model not saved.")
         if MODEL_MODE == 'seq2seq' and valid_all_acc.result() >= max(avg_valid_all_accs):
-            print("Saving model checkpoint with maximum all accuracy...")
+            print("Maximum all acc:  improved! Model saved.")
             max_all_acc_ckpt_manager.save()
-        else: print("Maximum all accuracy did not improve, model not saving.")
+        else: print("Maximum all acc:  did not improve, model not saved.")
         if valid_mid_acc.result() >= max(avg_valid_mid_accs):
-            print("Saving model checkpoint with maximum middle accuracy...")
+            print("Maximum mid acc:  improved! Model saved.")
             max_mid_acc_ckpt_manager.save()
-        else: print("Maximum middle accuracy did not improve, model not saving.")
+        else: print("Maximum mid acc:  did not improve, model not saved.")
         print('')
 
-        show_pred_and_truth(y_real, y_pred)
+        # show_pred_and_truth(y_real, y_pred)
 
-        print("\nPlotting history figure... ", end='')
+        print("Plotting history figure... ", end='')
         plot_history(CKPT_DIR, {
             'train_all_loss': avg_train_all_losses,
             'train_mid_loss': avg_train_mid_losses,
