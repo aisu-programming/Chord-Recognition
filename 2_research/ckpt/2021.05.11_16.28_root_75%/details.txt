@@ -1,0 +1,33 @@
+# Data parameters
+LOAD_SONG_AMOUNT: 200
+SAMPLE_RATE     : 44800
+HOP_LENGTH      : 4480
+VALID_RATIO     : 0.6
+
+# Model parameters
+MODEL_TARGET: seventh
+MODEL_MODE  : seq2seq
+PRED_MODE   : root
+BATCH_LEN   : 51
+DIM         : 192
+QKV_DIM     : 512
+N           : 6
+NUM_HEADS   : 32
+DROPOUT     : 0.2
+CONV_NUM    : 2
+CONV_DIM    : 128
+
+# Preprocess parameters
+RANDOM_SEED    : 1
+DATASET_HOP    : 51
+TRAIN_BATCH_LEN: 500
+VALID_BATCH_LEN: 2500
+
+# Training parameters
+INITIAL_LR  : 0.001
+WARMUP_STEPS: 500
+DECAY_STEPS : 500
+DECAY_RATE  : 0.85
+MIN_LR      : 1e-06
+EPOCH       : 50
+BATCH_SIZE  : 128
