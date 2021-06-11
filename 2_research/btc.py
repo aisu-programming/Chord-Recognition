@@ -125,24 +125,35 @@ class MyModel(tf.keras.Model):
             BidirectionalMaskedSelfAttention(batch_len, num_heads, qkv_dim, dim, dropout, conv_num, conv_dim)
             for _ in range(N)
         ]
-        if model_target == 'majmin':
-            if pred_mode == 'integrate':
-                self.ChordSoftmax = tf.keras.layers.Dense(26, activation=tf.keras.activations.softmax)
-            elif pred_mode == 'separate':
-                self.RootSoftmax = tf.keras.layers.Dense(13, activation=tf.keras.activations.softmax)
-                self.QualitySoftmax = tf.keras.layers.Dense(4, activation=tf.keras.activations.softmax)
-            else:
-                raise Exception
-        elif model_target == 'seventh':
-            if pred_mode == 'integrate':
-                self.ChordSoftmax = tf.keras.layers.Dense(62, activation=tf.keras.activations.softmax)
-            elif pred_mode == 'separate':
-                self.RootSoftmax = tf.keras.layers.Dense(13, activation=tf.keras.activations.softmax)
-                self.QualitySoftmax = tf.keras.layers.Dense(7, activation=tf.keras.activations.softmax)
-            else:
-                raise Exception
+
+        if pred_mode == 'root':
+            self.RootSoftmax = tf.keras.layers.Dense(13, activation=tf.keras.activations.softmax)
+        elif pred_mode == 'quality_bitmap':
+            raise NotImplementedError
+            self.QualitySigmoid = tf.keras.layers.Dense(12, activation=tf.keras.activations.sigmoid)
         else:
-            raise Exception
+            if model_target == 'majmin':
+                if pred_mode == 'integrate':
+                    self.ChordSoftmax = tf.keras.layers.Dense(26, activation=tf.keras.activations.softmax)
+                elif pred_mode == 'quality':
+                    self.QualitySoftmax = tf.keras.layers.Dense(4, activation=tf.keras.activations.softmax)
+                elif pred_mode == 'separate':
+                    self.RootSoftmax = tf.keras.layers.Dense(13, activation=tf.keras.activations.softmax)
+                    self.QualitySoftmax = tf.keras.layers.Dense(4, activation=tf.keras.activations.softmax)
+                else:
+                    raise Exception
+            elif model_target == 'seventh':
+                if pred_mode == 'integrate':
+                    self.ChordSoftmax = tf.keras.layers.Dense(62, activation=tf.keras.activations.softmax)
+                elif pred_mode == 'quality':
+                    self.QualitySoftmax = tf.keras.layers.Dense(4, activation=tf.keras.activations.softmax)
+                elif pred_mode == 'separate':
+                    self.RootSoftmax = tf.keras.layers.Dense(13, activation=tf.keras.activations.softmax)
+                    self.QualitySoftmax = tf.keras.layers.Dense(7, activation=tf.keras.activations.softmax)
+                else:
+                    raise Exception
+            else:
+                raise Exception
 
     @property
     def PositionalEncoding(self):
@@ -162,10 +173,21 @@ class MyModel(tf.keras.Model):
             x, attn_forward, attn_backward = BidirectionalMaskedSelfAttention(x, training=training)
             attns_forward.append(attn_forward)
             attns_backward.append(attn_backward)
+
         if self.pred_mode == 'integrate':
             x = self.ChordSoftmax(x)
+        elif self.pred_mode == 'root':
+            x = self.RootSoftmax(x)
+        elif self.pred_mode == 'quality':
+            x = self.QualitySoftmax(x)
+        elif self.pred_mode == 'quality_bitmap':
+            raise NotImplementedError
+            x = self.QualitySigmoid(x)
         elif self.pred_mode == 'separate':
             root = self.RootSoftmax(x)
             quality = self.QualitySoftmax(x)
             x = tf.concat([root, quality], axis=-1)
+        else:
+            raise Exception
+
         return x, attns_forward, attns_backward

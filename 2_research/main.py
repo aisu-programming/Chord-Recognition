@@ -8,7 +8,7 @@ from btc import MyModel
 from plot import plot_history, plot_loss_lr, plot_attns
 from utils import make_dir, loss_function, accuracy_function, read_data, show_pred_and_truth
 
-physical_devices = tf.config.list_physical_devices('GPU') 
+physical_devices = tf.config.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 
@@ -26,11 +26,14 @@ MODEL_MODE = 'seq2seq'
 # MODEL_MODE = 'seq2one'
 PRED_MODE = 'integrate'
 # PRED_MODE = 'separate'
-BATCH_LEN = 101
+# PRED_MODE = 'root'
+# PRED_MODE = 'quality'
+# PRED_MODE = 'quality_bitmap'
+BATCH_LEN = 51
+N = 7
 DIM = 192
-QKV_DIM = 512
-N = 8
-NUM_HEADS = 32
+NUM_HEADS = 24
+QKV_DIM = NUM_HEADS * 16
 DROPOUT = 0.2
 CONV_NUM = 2
 CONV_DIM = 128
@@ -39,17 +42,17 @@ CONV_DIM = 128
 RANDOM_SEED = 1
 np.random.seed(RANDOM_SEED)
 DATASET_HOP = BATCH_LEN
-TRAIN_BATCH_LEN = 200
-VALID_BATCH_LEN = 1500
+TRAIN_BATCH_LEN = 1000
+VALID_BATCH_LEN = 3000
 
 ''' Training parameters '''
-INITIAL_LR = 1e-4
+INITIAL_LR = 6e-4
 WARMUP_STEPS = TRAIN_BATCH_LEN
 DECAY_STEPS = TRAIN_BATCH_LEN
 DECAY_RATE = 0.9
-MIN_LR = 1e-7
-EPOCH = 50
-BATCH_SIZE = 64
+MIN_LR = 7e-5
+EPOCH = 30
+BATCH_SIZE = 128
 CKPT_DIR = make_dir()
 
 
@@ -69,26 +72,28 @@ def save_details():
         f.write(f"MODEL_MODE  : {MODEL_MODE}\n")
         f.write(f"PRED_MODE   : {PRED_MODE}\n")
         f.write(f"BATCH_LEN   : {BATCH_LEN}\n")
-        f.write(f"DIM         : {DIM}\n")
-        f.write(f"QKV_DIM     : {QKV_DIM}\n")
         f.write(f"N           : {N}\n")
+        f.write(f"DIM         : {DIM}\n")
         f.write(f"NUM_HEADS   : {NUM_HEADS}\n")
+        f.write(f"QKV_DIM     : {QKV_DIM}\n")
         f.write(f"DROPOUT     : {DROPOUT}\n")
         f.write(f"CONV_NUM    : {CONV_NUM}\n")
         f.write(f"CONV_DIM    : {CONV_DIM}\n\n")
 
-        f.write(f"# Training parameters\n")
+        f.write(f"# Preprocess parameters\n")
         f.write(f"RANDOM_SEED    : {RANDOM_SEED}\n")
         f.write(f"DATASET_HOP    : {DATASET_HOP}\n")
         f.write(f"TRAIN_BATCH_LEN: {TRAIN_BATCH_LEN}\n")
-        f.write(f"VALID_BATCH_LEN: {VALID_BATCH_LEN}\n")
-        f.write(f"INITIAL_LR     : {INITIAL_LR}\n")
-        f.write(f"WARMUP_STEPS   : {WARMUP_STEPS}\n")
-        f.write(f"DECAY_STEPS    : {DECAY_STEPS}\n")
-        f.write(f"DECAY_RATE     : {DECAY_RATE}\n")
-        f.write(f"MIN_LR         : {MIN_LR}\n")
-        f.write(f"EPOCH          : {EPOCH}\n")
-        f.write(f"BATCH_SIZE     : {BATCH_SIZE}\n")
+        f.write(f"VALID_BATCH_LEN: {VALID_BATCH_LEN}\n\n")
+
+        f.write(f"# Training parameters\n")
+        f.write(f"INITIAL_LR  : {INITIAL_LR}\n")
+        f.write(f"WARMUP_STEPS: {WARMUP_STEPS}\n")
+        f.write(f"DECAY_STEPS : {DECAY_STEPS}\n")
+        f.write(f"DECAY_RATE  : {DECAY_RATE}\n")
+        f.write(f"MIN_LR      : {MIN_LR}\n")
+        f.write(f"EPOCH       : {EPOCH}\n")
+        f.write(f"BATCH_SIZE  : {BATCH_SIZE}\n")
 
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
@@ -109,13 +114,13 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 
 # Customized training step
-@tf.function
+# @tf.function
 def train_step(x, y_real):
     
     with tf.GradientTape() as tape:
         y_pred, attns_forward, attns_backward = model(x, training=True)
-        all_loss, mid_loss = loss_function(y_real, y_pred, loss_criterion)
-    all_acc, mid_acc = accuracy_function(y_real, y_pred)
+        all_loss, mid_loss = loss_function(y_real, y_pred, PRED_MODE, loss_criterion)
+    all_acc, mid_acc = accuracy_function(y_real, y_pred, PRED_MODE)
 
     if   MODEL_MODE == 'seq2seq': gradients = tape.gradient(all_loss, model.trainable_variables)
     elif MODEL_MODE == 'seq2one': gradients = tape.gradient(mid_loss, model.trainable_variables)
@@ -134,8 +139,8 @@ def train_step(x, y_real):
 def valid_step(x, y_real):
 
     y_pred, _, _ = model(x)
-    all_loss, mid_loss = loss_function(y_real, y_pred, loss_criterion)
-    all_acc, mid_acc = accuracy_function(y_real, y_pred)
+    all_loss, mid_loss = loss_function(y_real, y_pred, PRED_MODE, loss_criterion)
+    all_acc, mid_acc = accuracy_function(y_real, y_pred, PRED_MODE)
 
     if MODEL_MODE == 'seq2seq': valid_all_loss(all_loss)
     valid_mid_loss(mid_loss)
@@ -202,7 +207,10 @@ def main():
     global loss_criterion, optimizer
     global train_all_loss, train_mid_loss, train_all_acc, train_mid_acc
     global valid_all_loss, valid_mid_loss, valid_all_acc, valid_mid_acc
-    loss_criterion = tf.keras.losses.CategoricalCrossentropy(reduction='none')
+    if PRED_MODE == 'quality_bitmap': 
+        loss_criterion = tf.keras.losses.MeanSquaredError(reduction='none')
+    else:
+        loss_criterion = tf.keras.losses.CategoricalCrossentropy(reduction='none')
     optimizer = tf.keras.optimizers.Adam(CustomSchedule(  # lr_schedule
         initial_lr=INITIAL_LR,
         warmup_steps=WARMUP_STEPS,
@@ -292,22 +300,22 @@ def main():
 
         # Train model
         print('')
-        progress_bar = tqdm(enumerate(train_batches), desc=f"Epoch {epoch+1:2d}/{EPOCH}", total=len(train_batches), ascii=True)
+        print(f"EPOCH {epoch+1:2d}/{EPOCH} [TRAIN]:")
+        progress_bar = tqdm(enumerate(train_batches), desc=f"{epoch+1:2d}/{EPOCH}", total=len(train_batches), ascii=True)
         for (i, (x_input, y_real)) in progress_bar:
             y_pred, attns_forward, attns_backward = train_step(x_input, y_real)
             if MODEL_MODE == 'seq2seq':
                 progress_bar.set_description(
-                    f"Epoch {epoch+1:2d}/{EPOCH} - TRAIN | " +
-                    f"all loss: {train_all_loss.result():.4f}, mid loss: {train_mid_loss.result():.4f} | " +
-                    f"all acc: {train_all_acc.result():.2f}%, mid acc: {train_mid_acc.result():.2f}% | " +
-                    f"lr: {optimizer._decayed_lr('float32').numpy():.10f} | ")  # +
-                    # f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
+                    f"AL {train_all_loss.result():.4f} ML {train_mid_loss.result():.4f} " +  # all loss & mid loss
+                    f"AA {train_all_acc.result():.2f}% MA {train_mid_acc.result():.2f}% " +  # all acc  & mid acc
+                    f"LR {optimizer._decayed_lr('float32').numpy():.6f}")
+                    # f" | BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
             else:
                 progress_bar.set_description(
-                    f"Epoch {epoch+1:2d}/{EPOCH} - TRAIN | " +
+                    f"{epoch+1:2d}/{EPOCH} TRAIN | " +
                     f"mid loss: {train_mid_loss.result():.4f} | " +
                     f"mid acc: {train_mid_acc.result():.2f}% | " +
-                    f"lr: {optimizer._decayed_lr('float32').numpy():.10f} | ")  # +
+                    f"lr: {optimizer._decayed_lr('float32').numpy():.10f}")  # | ")  # +
                     # f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
         if MODEL_MODE == 'seq2seq': avg_train_all_losses.append(train_all_loss.result())
         avg_train_mid_losses.append(train_mid_loss.result())
@@ -319,20 +327,20 @@ def main():
         # Validate model
         # os.system('cls')
         # print('')
-        progress_bar = tqdm(valid_batches, desc=f"Epoch {epoch+1:2d}/{EPOCH}", total=len(valid_batches), ascii=True)
+        print(f"EPOCH {epoch+1:2d}/{EPOCH} [VALID]:")
+        progress_bar = tqdm(valid_batches, desc=f"{epoch+1:2d}/{EPOCH}", total=len(valid_batches), ascii=True)
         for (x_input, y_real) in progress_bar:
             y_pred = valid_step(x_input, y_real)
             if MODEL_MODE == 'seq2seq':
                 progress_bar.set_description(
-                    f"Epoch {epoch+1:2d}/{EPOCH} - VALID | " +
-                    f"all loss: {valid_all_loss.result():.4f}, mid loss: {valid_mid_loss.result():.4f} | " +
-                    f"all acc: {valid_all_acc.result():.2f}%, mid acc: {valid_mid_acc.result():.2f}% | ")  # +
-                    # f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
+                    f"AL {valid_all_loss.result():.4f} ML {valid_mid_loss.result():.4f} | " +  # all loss & mid loss
+                    f"AA {valid_all_acc.result():.2f}% MA {valid_mid_acc.result():.2f}%")      # all acc  & mid acc
+                    # f" | BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
             else:
                 progress_bar.set_description(
-                    f"Epoch {epoch+1:2d}/{EPOCH} - VALID | " +
+                    f"{epoch+1:2d}/{EPOCH} VALID | " +
                     f"mid loss: {valid_mid_loss.result():.4f} | " +
-                    f"mid acc: {valid_mid_acc.result():.2f}% | ")  # +
+                    f"mid acc: {valid_mid_acc.result():.2f}%")  #  | " +
                     # f"BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
         if MODEL_MODE == 'seq2seq': avg_valid_all_losses.append(valid_all_loss.result())
         avg_valid_mid_losses.append(valid_mid_loss.result())
@@ -351,16 +359,16 @@ def main():
             min_mid_loss_ckpt_manager.save()
         else: print("Minimum mid loss: did not improve, model not saved.")
         if MODEL_MODE == 'seq2seq' and valid_all_acc.result() >= max(avg_valid_all_accs):
-            print("Maximum all acc:  improved! Model saved.")
+            print("Maximum all acc : improved! Model saved.")
             max_all_acc_ckpt_manager.save()
-        else: print("Maximum all acc:  did not improve, model not saved.")
+        else: print("Maximum all acc : did not improve, model not saved.")
         if valid_mid_acc.result() >= max(avg_valid_mid_accs):
-            print("Maximum mid acc:  improved! Model saved.")
+            print("Maximum mid acc : improved! Model saved.")
             max_mid_acc_ckpt_manager.save()
-        else: print("Maximum mid acc:  did not improve, model not saved.")
+        else: print("Maximum mid acc : did not improve, model not saved.")
         print('')
 
-        # show_pred_and_truth(y_real, y_pred)
+        show_pred_and_truth(y_real, y_pred, PRED_MODE)
 
         print("Plotting history figure... ", end='')
         plot_history(CKPT_DIR, {

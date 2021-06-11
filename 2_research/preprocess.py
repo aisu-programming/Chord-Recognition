@@ -1,6 +1,7 @@
 ''' Libraries '''
 import pandas as pd
 import numpy as np
+import mir_eval
 from tqdm import tqdm
 
 
@@ -9,8 +10,23 @@ SR = 44800
 
 
 ''' Functions '''
-def integrate():
-    pass
+def find_seventh_chord(label):
+    root = mir_eval.chord.split(label)[0]
+    criteion_func = mir_eval.chord.sevenths
+    # criteion_func = mir_eval.chord.sevenths_inv
+    try:
+        if label == 'N': return 'N'
+        seventh_target = [ ":min", ":maj", ":7", ":maj7", ":min7" ]
+        for target in seventh_target:
+            if criteion_func([f"{root}{target}"], [label]): return f"{root}{target}"
+            else: return f"{label}"
+    except mir_eval.chord.InvalidChordException:
+        print(f"{label} <---> {root}{target}")
+        raise mir_eval.chord.InvalidChordException
+    except:
+        print(f"{label} <---> {root}{target}")
+        raise Exception
+
 
 
 def main(path, song_amount, hop_len):
@@ -31,11 +47,13 @@ def main(path, song_amount, hop_len):
                 row_data   = row[:-1].split('\t')
                 start_time = float(row_data[1])
                 end_time   = float(row_data[1])
-                label      = row_data[2]
+                label      = row_data[2].strip()
+                # seventh    = find_seventh_chord(label)
                 y_reference.append({
                     'start_time': start_time,
                     'end_time'  : end_time,
-                    'label'     : label
+                    'label'     : label,
+                    # 'seventh'   : seventh,
                 })
 
         # length of feature & last end_time might be different
@@ -50,12 +68,16 @@ def main(path, song_amount, hop_len):
                 if y_j == len(y_reference): break
                 elif end_time > y_reference[y_j]['end_time']: y_j += 1
                 else: break
+                
             if end_time < 0:
                 output[k].append('N')
+                # output[k].append('N')
             elif y_j < len(y_reference):
                 output[k].append(y_reference[y_j]['label'])
+                # output[k].append(y_reference[y_j]['seventh'])
             else:
                 output[k].append('N')
+                # output[k].append('N')
 
         pd.DataFrame(np.array(output)).to_csv(f"{path}/{i+1}/data_{SR}_{hop_len}.csv")
 

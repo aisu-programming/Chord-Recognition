@@ -89,23 +89,29 @@ def plot_attns(ckpt_dir, attns_forward, attns_backward):
     attns_forward  = np.squeeze(np.array(attns_forward)[:, -1])
     attns_backward = np.squeeze(np.array(attns_backward)[:, -1])
 
+    col_num = 6
+    plot_width = 27  # 4 -> 18
+
+    row_num = 4
+    plot_height = 20
+
     for i in range(attns_forward.shape[0]):
 
-        fig, axs = plt.subplots(4, 8)
-        fig.set_size_inches(36, 20)
+        fig, axs = plt.subplots(row_num, col_num)
+        fig.set_size_inches(plot_width, plot_height)
         fig.suptitle(f"Forward attentions (N={i+1})", fontsize=20)
         for j in range(attns_forward.shape[1]):
-            axs[j//8][j%8].set_title(j+1)
-            axs[j//8][j%8].matshow(attns_forward[i, j])
+            axs[j//col_num][j%col_num].set_title(j+1)
+            axs[j//col_num][j%col_num].matshow(attns_forward[i, j])
         plt.tight_layout()
         plt.savefig(f"{ckpt_dir}/attns_forward_N={i+1}.png", dpi=200)
 
-        fig, axs = plt.subplots(4, 8)
-        fig.set_size_inches(36, 20)
+        fig, axs = plt.subplots(row_num, col_num)
+        fig.set_size_inches(plot_width, plot_height)
         fig.suptitle(f"Backward attentions (N={i+1})", fontsize=20)
         for j in range(attns_backward.shape[1]):
-            axs[j//8][j%8].set_title(j+1)
-            axs[j//8][j%8].matshow(attns_backward[i, j])
+            axs[j//col_num][j%col_num].set_title(j+1)
+            axs[j//col_num][j%col_num].matshow(attns_backward[i, j])
         plt.tight_layout()
         plt.savefig(f"{ckpt_dir}/attns_backward_N={i+1}.png", dpi=200)
         plt.close('all')

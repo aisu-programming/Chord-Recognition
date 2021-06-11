@@ -63,9 +63,11 @@ mapping_seventh_quality2id = {
     'N'   : 1,
     'maj' : 2,
     'min' : 3,
+    'dim' : 3,
     '7'   : 4,
     'maj7': 5,
     'min7': 6,
+    'dim7': 6,
 }
 
 mapping_seventh_chord2id = {

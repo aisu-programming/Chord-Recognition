@@ -1,34 +1,44 @@
 ''' Libraries '''
-# pass
+import mir_eval
 
 
 ''' Codes '''
 def view_ground_truth(song_i):
 
-    with open(f"../customized_data/CE10/{song_i+1}/ground_truth.txt") as f:
+    qualities = {}
+    for i in range(song_i):
+        chords = {}
+        try:
+            with open(f"../customized_data/CE200/{i+1}/ground_truth.txt") as f:
+                index = 0
+                while True:
+                    index += 1
+                    row = f.readline()
+                    if row == '': break
+                    data_array = row[:-1].split('\t')
 
-        index = 0
-        min_during_time = 1000.
-        while True:
+                    start_time = float(data_array[0])
+                    end_time = float(data_array[1])
+                    during_time = end_time - start_time
+                    chord = str(data_array[2]).strip()
 
-            index += 1
-            row = f.readline()
-            if row == '': break
-            data_array = row[:-1].split('\t')
+                    if chord not in chords.keys(): chords[chord] = 1
+                    else: chords[chord] += 1
 
-            start_time = float(data_array[0])
-            end_time = float(data_array[1])
-            during_time = end_time - start_time
-            chord = str(data_array[2])
+                    # quality = mir_eval.chord.split(chord)[1]
+                    # if quality not in qualities.keys(): qualities[quality] = 1
+                    # else: qualities[quality] += 1
 
-            # print('{:3} : {:10.6f} ~ {:10.6f} ({:9.6f}) : {}'.format(index, start_time, end_time, during_time, chord))
+            chords = dict(sorted(chords.items()))
+            print(i, chords)
 
-            if during_time < min_during_time: min_during_time = during_time
-        
-        print(min_during_time)
+        except:
+            print(f"Read file no.{i+1} error.")
+
+    # qualities = dict(sorted(qualities.items()))
+    # print(qualities)
 
 
 ''' Testing '''
 if __name__ == "__main__":
-    for i in range(10):
-        view_ground_truth(song_i=i)
+    view_ground_truth(200)
