@@ -10,9 +10,7 @@ SETLOCAL EnableDelayedExpansion
   cls
 
   echo !date! !time!
-  echo 每 !ExecutePeriod! 秒執行一次，指令^: !ExecuteCommand!
-
-  echo.
+  echo Execute !ExecuteCommand! per !ExecutePeriod! second(s).
 
   %ExecuteCommand%
   

@@ -30,13 +30,13 @@ PRED_MODE = 'integrate'
 # PRED_MODE = 'quality'
 # PRED_MODE = 'quality_bitmap'
 BATCH_LEN = 51
-N = 7
+N = 4
 DIM = 192
-NUM_HEADS = 24
-QKV_DIM = NUM_HEADS * 16
-DROPOUT = 0.2
+NUM_HEADS = 32
+QKV_DIM = NUM_HEADS * 64
+DROPOUT = 0.3
 CONV_NUM = 2
-CONV_DIM = 128
+CONV_DIM = DIM * 1.5  # 128
 
 ''' Preprocess parameters '''
 RANDOM_SEED = 1
@@ -46,12 +46,12 @@ TRAIN_BATCH_LEN = 1000
 VALID_BATCH_LEN = 3000
 
 ''' Training parameters '''
-INITIAL_LR = 6e-4
+INITIAL_LR = 2e-4
 WARMUP_STEPS = TRAIN_BATCH_LEN
 DECAY_STEPS = TRAIN_BATCH_LEN
-DECAY_RATE = 0.9
-MIN_LR = 7e-5
-EPOCH = 30
+DECAY_RATE = 0.88
+MIN_LR = 2e-5
+EPOCH = 20
 BATCH_SIZE = 128
 CKPT_DIR = make_dir()
 
@@ -333,8 +333,8 @@ def main():
             y_pred = valid_step(x_input, y_real)
             if MODEL_MODE == 'seq2seq':
                 progress_bar.set_description(
-                    f"AL {valid_all_loss.result():.4f} ML {valid_mid_loss.result():.4f} | " +  # all loss & mid loss
-                    f"AA {valid_all_acc.result():.2f}% MA {valid_mid_acc.result():.2f}%")      # all acc  & mid acc
+                    f"AL {valid_all_loss.result():.4f} ML {valid_mid_loss.result():.4f} " +  # all loss & mid loss
+                    f"AA {valid_all_acc.result():.2f}% MA {valid_mid_acc.result():.2f}%")    # all acc  & mid acc
                     # f" | BATCH_LEN: {BATCH_LEN} | BATCH_SIZE: {BATCH_SIZE}")
             else:
                 progress_bar.set_description(

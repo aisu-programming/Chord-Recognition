@@ -89,11 +89,11 @@ def plot_attns(ckpt_dir, attns_forward, attns_backward):
     attns_forward  = np.squeeze(np.array(attns_forward)[:, -1])
     attns_backward = np.squeeze(np.array(attns_backward)[:, -1])
 
-    col_num = 6
-    plot_width = 27  # 4 -> 18
+    col_num = 8
+    plot_width = 36  # 4 -> 18 ( 1 : 4.5 )
 
     row_num = 4
-    plot_height = 20
+    plot_height = 20  # 4 -> 20 (1 : 5)
 
     for i in range(attns_forward.shape[0]):
 
