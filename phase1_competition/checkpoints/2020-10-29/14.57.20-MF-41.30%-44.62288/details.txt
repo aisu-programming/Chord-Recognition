@@ -1,0 +1,15 @@
+RAMDON_SEED = 1
+
+data_divide_amount = 1
+frames_per_data = 11
+
+epochs = 1000
+batch_size = 174511
+
+cost_time: 0:03:04.980073
+validation_loss: 2.42511248588562
+validation_accuracy: 0.4129759967327118
+
+Score by 'last' model: 0.4394832408309107
+Score by 'min val_loss' model: 0.4418663718468632
+Score by 'max val_accuracy' model: 0.4462287550402528

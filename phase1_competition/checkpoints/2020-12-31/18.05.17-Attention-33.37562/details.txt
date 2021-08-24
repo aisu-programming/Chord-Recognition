@@ -1,0 +1,15 @@
+RAMDON_SEED = 1
+
+EPOCHS = 100
+BATCH_SIZE = 1000
+PATIENCE = 15
+
+data_divide_amount = 1
+frames_per_data = 11
+
+CQT / CENS: only CQT
+cost_time: 0:06:56.208925
+
+Score by 'last' model: [0.3264489353325583]
+Score by 'min_val_loss' model: [0.33375619251981187]
+Score by 'max_val_acc' model: [0.33375619251981187]

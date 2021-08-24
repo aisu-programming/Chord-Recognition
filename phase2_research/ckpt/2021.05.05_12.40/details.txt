@@ -1,0 +1,28 @@
+# Data parameters
+LOAD_SONG_AMOUNT: 200
+SAMPLE_RATE     : 44800
+HOP_LENGTH      : 4480
+VALID_RATIO     : 0.2
+
+# Model parameters
+MODEL_MODE : seq2seq
+OUTPUT_MODE: 63
+BATCH_LEN  : 101
+DIM        : 192
+N          : 2
+NUM_HEADS  : 16
+DROPOUT    : 0.2
+CONV_NUM   : 2
+CONV_DIM   : 512
+
+# Training parameters
+RANDOM_SEED    : 1
+DATASET_HOP    : 50
+TRAIN_BATCH_LEN: 500
+VALID_BATCH_LEN: 500
+INITIAL_LR     : 0.05
+WARMUP_STEPS   : 2000
+DECAY_STEPS    : 200
+DECAY_RATE     : 0.99
+EPOCH          : 300
+BATCH_SIZE     : 512
