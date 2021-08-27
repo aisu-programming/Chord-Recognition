@@ -48,7 +48,7 @@
 11. 改良 mapping.py:
     新增並改用一個內容僅包含評分項目的 mapping dictionary。
     正確率從大約 45% 提升到了 50%，效果比想像中少許多，所以問題可能不在這裡。
-12. fasterReadingModel.py：
+12. fasterReadingModel.py:
     將資料預處理的步驟改至「餵資料進 Model 前的瞬間」，大幅降低資料讀取時間與記憶體負擔。
     
 ## 結果
