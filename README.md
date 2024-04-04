@@ -4,6 +4,8 @@
 
 [AI CUP 2020 - Chord Recognition Competition Website](https://aidea-web.tw/topic/43d9cc47-b70e-4751-80d3-a2d7333eb77b)
 
+Awards: https://global.turingcerts.com/en/co/cert?hash=6a1e9c33453834e3eb8f201e558c563868a308f430606bddb863fe89b6638171
+
 ---
 
 ## Environment
